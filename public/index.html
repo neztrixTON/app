@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Чаты</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <header>Чаты</header>
+  <div class="chat-list" id="chatList">
+    <!-- Тут будет перечень чатов -->
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    // При старте этой страницы — инициализируем WebApp и подгружаем список чатов
+    Telegram.WebApp.ready();
+
+    (async function() {
+      // Получаем информацию о юзере из Telegram WebApp
+      const initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
+      const user = initDataUnsafe.user;
+      if (!user) {
+        document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
+        return;
+      }
+      const userId = String(user.id);
+      // Запрашиваем список чатов у нашего бэкенда
+      try {
+        const res = await fetch(`/api/chats?userId=${userId}`);
+        if (!res.ok) throw new Error('Не удалось получить чаты');
+        const chats = await res.json();
+        if (!Array.isArray(chats) || chats.length === 0) {
+          document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
+          return;
+        }
+        // Отрисовываем каждый чат
+        const container = document.getElementById('chatList');
+        container.innerHTML = '';
+        chats.forEach(chat => {
+          const div = document.createElement('div');
+          div.className = 'chat-item';
+          div.onclick = () => {
+            // Переход на chat.html с параметром chatId
+            window.location.href = `chat.html?chatId=${encodeURIComponent(chat.chatId)}`;
+          };
+          div.innerHTML = `
+            <div class="avatar"></div>
+            <div class="info">
+              <div class="title">${chat.title}</div>
+              <div class="last">Нажмите, чтобы открыть&nbsp;→</div>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      } catch (e) {
+        document.getElementById('chatList').innerHTML = `<p style="padding:12px;">Ошибка: ${e.message}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>
