@@ -11,7 +11,7 @@ const DOMAIN = process.env.DOMAIN || `http://localhost`;
 // где будет развернут этот сервер (с HTTPS!).
 
 // --- Временное (in-memory) хранилище чатов и сообщений ---
-const USERS = ['1276928573', '310083499'];
+const USERS = ['1276928573', '6448269992'];
 // Для простоты считаем, что между любыми двумя пользователями создаётся chatId = "user1_user2"
 function getChatId(u1, u2) {
   const sorted = [u1, u2].sort();
