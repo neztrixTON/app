@@ -2,20 +2,19 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Задаём viewport с отключением зума, чтобы плашки всегда оставались на месте -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Чаты</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <!-- Header с заголовком -->
   <header>
-    <div id="chatTitle" style="flex:1; text-align:center;">Чаты</div>
+    <div id="chatTitle">Чаты</div>
   </header>
 
-  <!-- Список чатов -->
   <div class="chat-list" id="chatList">
-    <!-- JavaScript подгрузит элементы сюда -->
+    <!-- Здесь JS заполнит список чатов -->
   </div>
 
   <!-- Кнопка “➕ Новый чат” -->
@@ -27,7 +26,7 @@
       <h3>Новый чат</h3>
       <input type="text" id="newUserId" placeholder="Введите ID пользователя" />
       <button id="createChatBtn">Создать</button>
-      <button id="closeModalBtn" style="margin-top:8px; background:#444;">Отмена</button>
+      <button id="closeModalBtn">Отмена</button>
     </div>
   </div>
 
@@ -35,14 +34,15 @@
     Telegram.WebApp.ready();
 
     (function() {
-      const user = Telegram.WebApp.initDataUnsafe?.user;
+      const initData = Telegram.WebApp.initDataUnsafe || {};
+      const user = initData.user;
       if (!user) {
-        document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Не удалось получить ID.</p>';
+        document.getElementById('chatList').innerHTML =
+          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Элементы страницы
       const chatListEl   = document.getElementById('chatList');
       const newBtn       = document.getElementById('newChatBtn');
       const modalOverlay = document.getElementById('modalOverlay');
@@ -50,7 +50,7 @@
       const createChatBtn= document.getElementById('createChatBtn');
       const newUserInput = document.getElementById('newUserId');
 
-      // --- Функция загрузки списка чатов ---
+      // Функция для загрузки списка чатов
       async function loadChats() {
         try {
           const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
@@ -87,14 +87,13 @@
         }
       }
 
-      // Открыть чат (переход внутрь mini-app)
+      // Открыть конкретный чат
       function openChat(chatId) {
-        // Вместо ручного URL используем window.location.href,
-        // но WebApp всё равно откроет chat.html в iframe
+        // Переходим к chat.html, Telegram WebApp откроет его
         window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
       }
 
-      // --- Показываем/скрываем модалку “Новый чат” ---
+      // Показать/скрыть модалку
       newBtn.onclick = () => {
         newUserInput.value = '';
         modalOverlay.style.display = 'flex';
@@ -103,7 +102,7 @@
         modalOverlay.style.display = 'none';
       };
 
-      // --- Создать новый чат ---
+      // Создать новый чат
       createChatBtn.onclick = async () => {
         const toId = newUserInput.value.trim();
         if (!toId) {
@@ -123,14 +122,13 @@
           if (!res.ok) throw new Error('Не удалось создать чат');
           const data = await res.json();
           modalOverlay.style.display = 'none';
-          // После создания сразу открываем чат
           openChat(data.chatId);
         } catch (err) {
           alert('Ошибка: ' + err.message);
         }
       };
 
-      // --- Изначальная загрузка и polling каждые 5 сек ---
+      // Изначальная загрузка + повтор каждые 5 сек
       loadChats();
       setInterval(loadChats, 5000);
     })();
