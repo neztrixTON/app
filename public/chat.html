@@ -2,13 +2,12 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Чат</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <!-- Header с кнопкой “назад” и статусом -->
   <header>
     <span id="backBtn">&#8592;</span>
     <div>
@@ -17,12 +16,10 @@
     </div>
   </header>
 
-  <!-- Блок сообщений -->
   <div class="messages" id="messagesContainer">
-    <!-- Сюда подгружаются <div class="message">… -->
+    <!-- Здесь появятся сообщения -->
   </div>
 
-  <!-- Поле ввода -->
   <div class="input-bar">
     <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
     <button id="sendBtn" disabled>Отправить</button>
@@ -42,7 +39,7 @@
       }
       const userId = String(user.id);
 
-      // Находим “другого” в chatId (пример: "1276928573_310083499")
+      // Определяем “другого” в chatId
       const [u1, u2] = chatId.split('_');
       const other = (u1 === userId ? u2 : u1);
 
@@ -55,12 +52,12 @@
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
-      // Назад → возвращаемся к index.html
+      // Кнопка “назад”
       backBtn.onclick = () => {
         window.location.href = 'index.html';
       };
 
-      // --- Проверка статуса собеседника каждые 5 сек ---
+      // Обновление статуса собеседника раз в 5 сек
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
@@ -69,13 +66,13 @@
           statusEl.textContent = data.online ? 'онлайн' : 'офлайн';
           statusEl.style.color   = data.online ? '#0f0' : '#888';
         } catch(e) {
-          console.error('Статус не получен:', e);
+          console.error('Не удалось получить статус:', e);
         }
       }
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // --- Загрузка и рендер сообщений ---
+      // Загрузка и рендер сообщений
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -105,18 +102,18 @@
             msgContainer.appendChild(div);
           });
 
-          // Прокручиваем вниз
+          // Прокрутка вниз
           msgContainer.scrollTop = msgContainer.scrollHeight;
         } catch (err) {
           console.error(err);
         }
       }
 
-      // Загрузка сообщений каждую 1 секунду
+      // Обновляем каждые 1 сек
       loadMessages();
       setInterval(loadMessages, 1000);
 
-      // --- Отправка нового сообщения ---
+      // Отправка сообщения
       inputEl.addEventListener('input', () => {
         sendBtn.disabled = inputEl.value.trim() === '';
       });
@@ -136,7 +133,7 @@
               text
             })
           });
-          if (!res.ok) throw new Error('Не удалось отправить');
+          if (!res.ok) throw new Error('Не удалось отправить сообщение');
           inputEl.value = '';
           await loadMessages();
         } catch (err) {
