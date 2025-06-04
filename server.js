@@ -1,83 +1,197 @@
 // server.js
-const express = require('express');
-const path = require('path');
-const bodyParser = require('body-parser');
-const cors = require('cors');
+const express     = require('express');
+const path        = require('path');
+const bodyParser  = require('body-parser');
+const cors        = require('cors');
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000');
-const DOMAIN = process.env.DOMAIN || `http://localhost`; 
-// Замените `https://your-domain.com` на свой реальный публичный URL, 
-// где будет развернут этот сервер (с HTTPS!).
+const PORT   = parseInt(process.env.PORT || '3000');
+const DOMAIN = process.env.DOMAIN || 'https://localhost';
+//   ↑ Убедитесь, что это ваш публичный HTTPS-адрес веб-сервера!
 
-// --- Временное (in-memory) хранилище чатов и сообщений ---
-const USERS = ['1276928573', '6448269992'];
-// Для простоты считаем, что между любыми двумя пользователями создаётся chatId = "user1_user2"
+// --- Хранилища “in-memory” ---
+const messagesStore = {};     // { chatId: [ { from, to, text, ts }, … ] }
+const userChats     = {};     // { userId: Set<chatId> }
+const lastSeen      = {};     // { userId: timestamp_ms }
+const lastReadIndex = {};     // { chatId: { userId: lastReadIdx (number) } }
+
+// Если чат ещё не создан, создаём его “по требованию”:
+function ensureChatExists(chatId, userA, userB) {
+  if (!messagesStore[chatId]) {
+    messagesStore[chatId] = [];
+    lastReadIndex[chatId] = {};
+    // Новый чат – помечаем, что оба пользователя ничего не читали: lastRead = 0
+    lastReadIndex[chatId][userA] = 0;
+    lastReadIndex[chatId][userB] = 0;
+  }
+  // Привязываем чат к каждому из участников:
+  if (!userChats[userA]) userChats[userA] = new Set();
+  if (!userChats[userB]) userChats[userB] = new Set();
+  userChats[userA].add(chatId);
+  userChats[userB].add(chatId);
+}
+
+// Помощник: вычисляем chatId по двум userId (чтобы он был одинаков для (u1,u2) и (u2,u1))
 function getChatId(u1, u2) {
   const sorted = [u1, u2].sort();
   return `${sorted[0]}_${sorted[1]}`;
 }
 
-// Структура: messagesStore = { chatId1: [ {from, to, text, ts}, ... ], chatId2: [...] }
-const messagesStore = {};
+// Помечаем пользователя “посетившим” приложение сейчас:
+function markUserSeen(userId) {
+  lastSeen[userId] = Date.now();
+}
 
-// Инициализируем хранилище пустым для единственного чата:
-const CHAT_ID = getChatId(USERS[0], USERS[1]);
-messagesStore[CHAT_ID] = [];
+// Проверка, онлайн ли пользователь (если он заходил в WebApp < 30 сек назад)
+function isOnline(userId) {
+  const ts = lastSeen[userId];
+  if (!ts) return false;
+  return (Date.now() - ts) < 30 * 1000;
+}
 
-// Middleware
+// CORS + JSON парсер + статика из /public
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 1) Получить список чатов для пользователя
+
+/**
+ * GET /api/chats?userId=xxx
+ * Возвращает список чатов, в которых участвует userId.
+ * Для каждого чата отдаёт:
+ *   { chatId, title, online, unreadCount, lastMessage }
+ */
 app.get('/api/chats', (req, res) => {
-  const userId = req.query.userId;
-  if (!USERS.includes(userId)) {
-    return res.status(404).json({ error: 'User not found' });
+  const userId = String(req.query.userId || '');
+  if (!userId) {
+    return res.status(400).json({ error: 'Не указан userId' });
   }
-  // Для простоты: если user входит в USERS, он есть только в одном чате между двумя.
-  const other = USERS.find(u => u !== userId);
-  const chatId = getChatId(userId, other);
-  res.json([
-    {
-      chatId,
-      title: `Чат с пользователем ${other}`,
-      userIds: [userId, other]
+
+  // Помечаем, что пользователь зашёл сейчас – значит “онлайн”
+  markUserSeen(userId);
+
+  // Если у пользователя нет ни одного чата – возвращаем пустой массив
+  const chatSet = userChats[userId];
+  if (!chatSet || chatSet.size === 0) {
+    return res.json([]);
+  }
+
+  const result = [];
+  for (const chatId of chatSet) {
+    const msgs = messagesStore[chatId] || [];
+    const total = msgs.length;
+
+    // Кто “второй” собеседник
+    const [u1, u2] = chatId.split('_');
+    const other = (u1 === userId ? u2 : u1);
+
+    // Последнее сообщение (если есть)
+    let lastMessageText = '';
+    if (msgs.length > 0) {
+      const last = msgs[msgs.length - 1];
+      lastMessageText = `${ last.from === userId ? 'Вы: ' : '' }${ last.text }`;
     }
-  ]);
+
+    // Считаем непрочитанные сообщения для этого пользователя
+    const lastRead = (lastReadIndex[chatId] && lastReadIndex[chatId][userId]) || 0;
+    const unreadCount = Math.max(0, total - lastRead);
+
+    // Онлайн/офлайн статусы собеседника
+    const otherOnline = isOnline(other);
+
+    result.push({
+      chatId,
+      title: `Чат с ${other}`,
+      online: otherOnline,
+      unreadCount,
+      lastMessage: lastMessageText
+    });
+  }
+
+  // Возвращаем список чатов
+  return res.json(result);
 });
 
-// 2) Получить все сообщения в чате
+
+/**
+ * GET /api/messages?chatId=xxx&userId=yyy
+ * Возвращает все сообщения в чате chatId. 
+ * При этом обновляет lastReadIndex[chatId][userId] = totalMessages,
+ * чтобы пометить все эти сообщения как “прочитанные” для userId.
+ */
 app.get('/api/messages', (req, res) => {
-  const chatId = req.query.chatId;
-  if (!chatId || !messagesStore[chatId]) {
-    return res.status(404).json({ error: 'Chat not found' });
+  const chatId = req.query.chatId || '';
+  const userId = String(req.query.userId || '');
+  if (!chatId || !userId) {
+    return res.status(400).json({ error: 'Не указан chatId или userId' });
   }
-  res.json(messagesStore[chatId]);
-});
 
-// 3) Отправить новое сообщение в чат
-app.post('/api/messages/send', (req, res) => {
-  const { chatId, from, to, text } = req.body;
-  if (!chatId || !from || !to || typeof text !== 'string') {
-    return res.status(400).json({ error: 'Bad request' });
-  }
+  // Если чата нет – 404
   if (!messagesStore[chatId]) {
     return res.status(404).json({ error: 'Chat not found' });
   }
-  const timestamp = new Date().toISOString();
-  const msg = { from, to, text, ts: timestamp };
-  messagesStore[chatId].push(msg);
-  res.json({ success: true, message: msg });
+
+  // Помечаем пользователя “онлайн” (он открыл чат)
+  markUserSeen(userId);
+
+  const msgs = messagesStore[chatId];
+  // Обновляем индекс прочтения
+  if (!lastReadIndex[chatId]) lastReadIndex[chatId] = {};
+  lastReadIndex[chatId][userId] = msgs.length;
+
+  return res.json(msgs);
 });
 
-// Всю папку public отдаём на клиент
+
+/**
+ * POST /api/messages/send
+ * Тело JSON: { from, to, text }
+ * Отправляет сообщение из from → to (новый либо существующий чат).
+ * Если чата ещё нет, создаёт его и привязывает к обоим пользователям.
+ * Возвращает { success: true, message: { from, to, text, ts } }.
+ */
+app.post('/api/messages/send', (req, res) => {
+  const { from, to, text } = req.body;
+  if (!from || !to || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Bad request' });
+  }
+  const userA = String(from);
+  const userB = String(to);
+  // Вычисляем chatId
+  const chatId = getChatId(userA, userB);
+
+  // Если чата нет – создаём
+  ensureChatExists(chatId, userA, userB);
+
+  // Добавляем сообщение
+  const timestamp = new Date().toISOString();
+  const msgObj = { from: userA, to: userB, text, ts: timestamp };
+  messagesStore[chatId].push(msgObj);
+
+  return res.json({ success: true, message: msgObj });
+});
+
+
+/**
+ * GET /api/status?userId=xxx
+ * Возвращает { online: true/false }, исходя из lastSeen.
+ */
+app.get('/api/status', (req, res) => {
+  const userId = String(req.query.userId || '');
+  if (!userId) {
+    return res.status(400).json({ error: 'Не указан userId' });
+  }
+  const online = isOnline(userId);
+  return res.json({ online });
+});
+
+
+// Любой другой запрос отдаём index.html (чтобы WebApp мог “управлять маршрутами”)
 app.get('*', (req, res) => {
-  // По умолчанию возвращаем index.html — Telegram Web App сам решит, куда идти
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
+
 app.listen(PORT, () => {
-  console.log(`Server is running on ${DOMAIN}:${PORT}`);
+  console.log(`Сервер запущен: ${DOMAIN}:${PORT}`);
 });
