@@ -8,74 +8,130 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header>Чаты</header>
+  <!-- Header с заголовком -->
+  <header>
+    <div id="chatTitle" style="flex:1; text-align:center;">Чаты</div>
+  </header>
+
+  <!-- Список чатов -->
   <div class="chat-list" id="chatList">
-    <!-- Сюда мы подгрузим список чатов -->
+    <!-- JavaScript подгрузит элементы сюда -->
+  </div>
+
+  <!-- Кнопка “➕ Новый чат” -->
+  <button id="newChatBtn">＋</button>
+
+  <!-- Модальное окно “Новый чат” -->
+  <div id="modalOverlay">
+    <div id="modal">
+      <h3>Новый чат</h3>
+      <input type="text" id="newUserId" placeholder="Введите ID пользователя" />
+      <button id="createChatBtn">Создать</button>
+      <button id="closeModalBtn" style="margin-top:8px; background:#444;">Отмена</button>
+    </div>
   </div>
 
   <script>
     Telegram.WebApp.ready();
 
     (function() {
-      const initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
-      const user      = initDataUnsafe.user;
+      const user = Telegram.WebApp.initDataUnsafe?.user;
       if (!user) {
-        document.getElementById('chatList').innerHTML = 
-          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
+        document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Не удалось получить ID.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Функция, которая будет подгружать чаты и рендерить их
+      // Элементы страницы
+      const chatListEl   = document.getElementById('chatList');
+      const newBtn       = document.getElementById('newChatBtn');
+      const modalOverlay = document.getElementById('modalOverlay');
+      const closeModal   = document.getElementById('closeModalBtn');
+      const createChatBtn= document.getElementById('createChatBtn');
+      const newUserInput = document.getElementById('newUserId');
+
+      // --- Функция загрузки списка чатов ---
       async function loadChats() {
         try {
           const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
-          if (!res.ok) throw new Error('Не удалось получить список чатов');
+          if (!res.ok) throw new Error('Не удалось получить чаты');
           const chats = await res.json();
-          const container = document.getElementById('chatList');
-          container.innerHTML = '';
-
-          if (!Array.isArray(chats) || chats.length === 0) {
-            container.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
+          chatListEl.innerHTML = '';
+          if (chats.length === 0) {
+            chatListEl.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
             return;
           }
-
-          // Отрисовываем каждый чат-пункт
           chats.forEach(chat => {
             const div = document.createElement('div');
             div.className = 'chat-item';
-            div.onclick = () => {
-              // При клике – переходим в chat.html?chatId=...
-              window.location.href = `chat.html?chatId=${encodeURIComponent(chat.chatId)}`;
-            };
-
-            const onlineClass = chat.online ? '#0f0' : '#888'; 
+            div.onclick = () => openChat(chat.chatId);
+            const onlineColor = chat.online ? '#0f0' : '#888';
             const statusText  = chat.online ? 'онлайн' : 'офлайн';
             const unreadHTML  = chat.unreadCount > 0
               ? `<span class="unread">${chat.unreadCount}</span>`
               : '';
-
             div.innerHTML = `
               <div class="avatar"></div>
               <div class="info">
                 <div class="title">${chat.title}</div>
                 <div class="subtitle">
-                  <span class="status" style="color:${onlineClass}">${statusText}</span>
-                  ${ unreadHTML }
+                  <span class="status" style="color:${onlineColor}">${statusText}</span>
+                  ${unreadHTML}
                 </div>
               </div>
             `;
-            container.appendChild(div);
+            chatListEl.appendChild(div);
           });
-        } catch(err) {
-          document.getElementById('chatList').innerHTML = 
-            `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
+        } catch (err) {
+          chatListEl.innerHTML = `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
         }
       }
 
-      // Сразу подгружаем первую раз
+      // Открыть чат (переход внутрь mini-app)
+      function openChat(chatId) {
+        // Вместо ручного URL используем window.location.href,
+        // но WebApp всё равно откроет chat.html в iframe
+        window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
+      }
+
+      // --- Показываем/скрываем модалку “Новый чат” ---
+      newBtn.onclick = () => {
+        newUserInput.value = '';
+        modalOverlay.style.display = 'flex';
+      };
+      closeModal.onclick = () => {
+        modalOverlay.style.display = 'none';
+      };
+
+      // --- Создать новый чат ---
+      createChatBtn.onclick = async () => {
+        const toId = newUserInput.value.trim();
+        if (!toId) {
+          alert('Введите ID пользователя');
+          return;
+        }
+        if (toId === userId) {
+          alert('Нельзя создать чат с самим собой');
+          return;
+        }
+        try {
+          const res = await fetch('/api/create-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: userId, to: toId })
+          });
+          if (!res.ok) throw new Error('Не удалось создать чат');
+          const data = await res.json();
+          modalOverlay.style.display = 'none';
+          // После создания сразу открываем чат
+          openChat(data.chatId);
+        } catch (err) {
+          alert('Ошибка: ' + err.message);
+        }
+      };
+
+      // --- Изначальная загрузка и polling каждые 5 сек ---
       loadChats();
-      // И обновляем каждые 5 секунд, чтобы “мгновенно” видеть новые чаты и статусы
       setInterval(loadChats, 5000);
     })();
   </script>
