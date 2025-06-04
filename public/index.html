@@ -10,54 +10,73 @@
 <body>
   <header>Чаты</header>
   <div class="chat-list" id="chatList">
-    <!-- Тут будет перечень чатов -->
+    <!-- Сюда мы подгрузим список чатов -->
   </div>
 
-  <script src="js/app.js"></script>
   <script>
-    // При старте этой страницы — инициализируем WebApp и подгружаем список чатов
     Telegram.WebApp.ready();
 
-    (async function() {
-      // Получаем информацию о юзере из Telegram WebApp
+    (function() {
       const initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
-      const user = initDataUnsafe.user;
+      const user      = initDataUnsafe.user;
       if (!user) {
-        document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
+        document.getElementById('chatList').innerHTML = 
+          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
         return;
       }
       const userId = String(user.id);
-      // Запрашиваем список чатов у нашего бэкенда
-      try {
-        const res = await fetch(`/api/chats?userId=${userId}`);
-        if (!res.ok) throw new Error('Не удалось получить чаты');
-        const chats = await res.json();
-        if (!Array.isArray(chats) || chats.length === 0) {
-          document.getElementById('chatList').innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
-          return;
+
+      // Функция, которая будет подгружать чаты и рендерить их
+      async function loadChats() {
+        try {
+          const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
+          if (!res.ok) throw new Error('Не удалось получить список чатов');
+          const chats = await res.json();
+          const container = document.getElementById('chatList');
+          container.innerHTML = '';
+
+          if (!Array.isArray(chats) || chats.length === 0) {
+            container.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
+            return;
+          }
+
+          // Отрисовываем каждый чат-пункт
+          chats.forEach(chat => {
+            const div = document.createElement('div');
+            div.className = 'chat-item';
+            div.onclick = () => {
+              // При клике – переходим в chat.html?chatId=...
+              window.location.href = `chat.html?chatId=${encodeURIComponent(chat.chatId)}`;
+            };
+
+            const onlineClass = chat.online ? '#0f0' : '#888'; 
+            const statusText  = chat.online ? 'онлайн' : 'офлайн';
+            const unreadHTML  = chat.unreadCount > 0
+              ? `<span class="unread">${chat.unreadCount}</span>`
+              : '';
+
+            div.innerHTML = `
+              <div class="avatar"></div>
+              <div class="info">
+                <div class="title">${chat.title}</div>
+                <div class="subtitle">
+                  <span class="status" style="color:${onlineClass}">${statusText}</span>
+                  ${ unreadHTML }
+                </div>
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        } catch(err) {
+          document.getElementById('chatList').innerHTML = 
+            `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
         }
-        // Отрисовываем каждый чат
-        const container = document.getElementById('chatList');
-        container.innerHTML = '';
-        chats.forEach(chat => {
-          const div = document.createElement('div');
-          div.className = 'chat-item';
-          div.onclick = () => {
-            // Переход на chat.html с параметром chatId
-            window.location.href = `chat.html?chatId=${encodeURIComponent(chat.chatId)}`;
-          };
-          div.innerHTML = `
-            <div class="avatar"></div>
-            <div class="info">
-              <div class="title">${chat.title}</div>
-              <div class="last">Нажмите, чтобы открыть&nbsp;→</div>
-            </div>
-          `;
-          container.appendChild(div);
-        });
-      } catch (e) {
-        document.getElementById('chatList').innerHTML = `<p style="padding:12px;">Ошибка: ${e.message}</p>`;
       }
+
+      // Сразу подгружаем первую раз
+      loadChats();
+      // И обновляем каждые 5 секунд, чтобы “мгновенно” видеть новые чаты и статусы
+      setInterval(loadChats, 5000);
     })();
   </script>
 </body>
