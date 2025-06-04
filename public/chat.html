@@ -8,113 +8,151 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header id="chatHeader">Чат</header>
+  <header>
+    <span id="backBtn">&#8592;</span>
+    <div>
+      <div id="chatTitle">Чат</div>
+      <div id="status">офлайн</div>
+    </div>
+  </header>
+
   <div class="messages" id="messagesContainer">
-    <!-- Сюда выведем список сообщений -->
+    <!-- Здесь появятся сообщения -->
   </div>
+
   <div class="input-bar">
     <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
     <button id="sendBtn" disabled>Отправить</button>
   </div>
 
-  <script src="js/app.js"></script>
   <script>
     Telegram.WebApp.ready();
 
-    (async function() {
-      // 1) Получаем userId и chatId
+    (function() {
       const initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
-      const user = initDataUnsafe.user;
+      const user      = initDataUnsafe.user;
       if (!user) {
-        document.getElementById('messagesContainer').innerHTML = '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
+        document.getElementById('messagesContainer').innerHTML =
+          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Из URL-параметров читаем chatId
+      // Считываем chatId из URL, например: chat.html?chatId=1276928573_310083499
       const params = new URLSearchParams(window.location.search);
       const chatId = params.get('chatId');
       if (!chatId) {
-        document.getElementById('messagesContainer').innerHTML = '<p style="padding:12px;">Не указан chatId.</p>';
+        document.getElementById('messagesContainer').innerHTML =
+          '<p style="padding:12px;">Не указан chatId.</p>';
         return;
       }
 
-      // 2) Подключаемся к API, чтобы получить историю сообщений
+      // Вычисляем, кто “другой” собеседник
+      const [u1, u2] = chatId.split('_');
+      const other    = (u1 === userId ? u2 : u1);
+
+      // Устанавливаем заголовок и сразу проверяем статус “онлайн”/“офлайн” собеседника
+      document.getElementById('chatTitle').textContent = `Чат с ${other}`;
+      async function updateOtherStatus() {
+        try {
+          const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
+          if (!res.ok) throw new Error('Не удалось получить статус');
+          const data = await res.json();
+          document.getElementById('status').textContent =
+            data.online ? 'онлайн' : 'офлайн';
+          document.getElementById('status').style.color =
+            data.online ? '#0f0' : '#888';
+        } catch(e) {
+          console.error(e);
+        }
+      }
+      // Сразу вызовем и потом — каждые 5 секунд
+      updateOtherStatus();
+      setInterval(updateOtherStatus, 5000);
+
+      // Обработаем “назад”: просто переводим на index.html
+      document.getElementById('backBtn').onclick = () => {
+        window.location.href = 'index.html';
+      };
+
+      // 1) Функция, которая загружает все сообщения из чата и рендерит их
       async function loadMessages() {
         try {
-          const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
+          const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`);
           if (!res.ok) throw new Error('Не удалось загрузить сообщения');
           const msgs = await res.json();
-          renderMessages(msgs);
-        } catch (e) {
-          console.error(e);
-          document.getElementById('messagesContainer').innerHTML = `<p style="padding:12px;">Ошибка: ${e.message}</p>`;
+
+          const container = document.getElementById('messagesContainer');
+          container.innerHTML = '';
+
+          msgs.forEach(m => {
+            const div = document.createElement('div');
+            div.classList.add('message');
+            div.classList.add(m.from === userId ? 'me' : 'you');
+
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble');
+            bubble.textContent = m.text;
+
+            const meta = document.createElement('div');
+            meta.classList.add('meta');
+            const date = new Date(m.ts);
+            const hh = date.getHours().toString().padStart(2, '0');
+            const mm = date.getMinutes().toString().padStart(2, '0');
+            meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
+
+            div.appendChild(bubble);
+            div.appendChild(meta);
+            container.appendChild(div);
+          });
+
+          // Прокрутка вниз
+          container.scrollTop = container.scrollHeight;
+        } catch(err) {
+          console.error(err);
         }
       }
 
-      // 3) Рендерим сообщения
-      function renderMessages(msgs) {
-        const container = document.getElementById('messagesContainer');
-        container.innerHTML = '';
-        msgs.forEach(m => {
-          const div = document.createElement('div');
-          div.classList.add('message');
-          div.classList.add(m.from === userId ? 'me' : 'you');
-          const bubble = document.createElement('div');
-          bubble.classList.add('bubble');
-          bubble.textContent = m.text;
-          const meta = document.createElement('div');
-          meta.classList.add('meta');
-          const date = new Date(m.ts);
-          const hh = date.getHours().toString().padStart(2, '0');
-          const mm = date.getMinutes().toString().padStart(2, '0');
-          meta.textContent = `${m.from === userId ? 'Вы' : 'Собеседник'} • ${hh}:${mm}`;
-          div.appendChild(bubble);
-          div.appendChild(meta);
-          container.appendChild(div);
-        });
-        // Прокрутить вниз:
-        container.scrollTop = container.scrollHeight;
-      }
+      // Сразу загрузим один раз и потом — каждые 1 секунду
+      loadMessages();
+      setInterval(loadMessages, 1000);
 
-      // 4) Обработчик кнопки «Отправить»
+
+      // 2) Обработка отправки нового сообщения
       const input = document.getElementById('messageInput');
-      const btn = document.getElementById('sendBtn');
+      const btn   = document.getElementById('sendBtn');
+
       input.addEventListener('input', () => {
         btn.disabled = input.value.trim() === '';
       });
+
       btn.addEventListener('click', async () => {
         const text = input.value.trim();
         if (!text) return;
         btn.disabled = true;
+
         try {
-          // Чтобы узнать, кто второй пользователь, возьмём chatId.split('_')
-          const [u1, u2] = chatId.split('_');
-          const to = u1 === userId ? u2 : u1;
-          const payload = { chatId, from: userId, to, text };
+          const payload = {
+            from: userId,
+            to: other,
+            text
+          };
           const res = await fetch('/api/messages/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
           });
           if (!res.ok) throw new Error('Не удалось отправить сообщение');
           input.value = '';
+          // Сразу после отправки попросим “обновить” список сообщений
           await loadMessages();
-        } catch (e) {
-          console.error(e);
-          alert('Ошибка при отправке: ' + e.message);
+        } catch(err) {
+          console.error(err);
+          alert('Ошибка при отправке: ' + err.message);
         } finally {
           btn.disabled = input.value.trim() === '';
         }
       });
-
-      // Установим корректный заголовок (имя собеседника)
-      const [u1, u2] = chatId.split('_');
-      const other = u1 === userId ? u2 : u1;
-      document.getElementById('chatHeader').textContent = `Чат с ${other}`;
-
-      // Инициализируем и загрузим предыдущие сообщения:
-      await loadMessages();
     })();
   </script>
 </body>
