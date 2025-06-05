@@ -22,69 +22,16 @@
   <div class="messages" id="messagesContainer"></div>
 
   <!-- Модалка для загрузки файла + комментария -->
-  <div id="fileModalOverlay" style="
-        display:none;
-        position:fixed; top:0; left:0; width:100%; height:100%;
-        background-color:rgba(0,0,0,0.85);
-        justify-content:center; align-items:center; z-index:30;">
-    <div style="
-          background-color:#1e1e1e;
-          padding:20px 24px;
-          border-radius:10px;
-          width:90%; max-width:360px;
-          box-shadow:0 6px 16px rgba(0,0,0,0.5);
-        ">
-      <h3 style="color:#f0f0f0; margin-bottom:12px; font-size:18px;">Отправить файл</h3>
-      <input 
-        type="file" 
-        id="modalFileInput" 
-        style="
-          display:block; margin-bottom:12px;
-          color:#f0f0f0;
-        "
-      />
+  <div id="fileModalOverlay">
+    <div>
+      <h3>Отправить файл</h3>
+      <input type="file" id="modalFileInput" />
       <textarea 
         id="fileComment" 
-        placeholder="Комментарий (необязательно)" 
-        style="
-          width:100%;
-          padding:10px 12px;
-          background-color:#2a2a2a;
-          color:#f0f0f0;
-          font-size:14px;
-          border:none;
-          border-radius:8px;
-          min-height:60px;
-          resize:none;
-          margin-bottom:12px;
-        "
+        placeholder="Комментарий (необязательно)"
       ></textarea>
-      <button id="sendFileWithCommentBtn" style="
-          width:100%;
-          padding:12px 0;
-          background-color:#2979ff;
-          border:none;
-          border-radius:8px;
-          color:#fff;
-          font-size:15px;
-          font-weight:600;
-          cursor:pointer;
-          margin-bottom:8px;
-        ">
-        Отправить
-      </button>
-      <button id="cancelFileBtn" class="cancel" style="
-          width:100%;
-          padding:10px 0;
-          background-color:#444;
-          border:none;
-          border-radius:8px;
-          color:#fff;
-          font-size:14px;
-          cursor:pointer;
-        ">
-        Отмена
-      </button>
+      <button id="sendFileWithCommentBtn">Отправить</button>
+      <button id="cancelFileBtn" class="cancel">Отмена</button>
     </div>
   </div>
 
@@ -95,13 +42,7 @@
       rows="1"
     ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
-    <button id="sendFileBtn" style="
-        background-color:transparent; 
-        font-size:20px; 
-        padding:8px; 
-        margin-left:8px; 
-        cursor:pointer;
-      ">📎</button>
+    <button id="sendFileBtn">📎</button>
   </div>
 
   <script>
@@ -158,7 +99,7 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // Для reply: запоминаем ID сообщения, на которое отвечаем
+      // Для reply: будем хранить id сообщения, на которое отвечаем
       let replyToId = null;
 
       function renderReplyPreview(text) {
@@ -220,6 +161,15 @@
               link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
+
+              // Если к файлу есть также комментарий (m.text), добавить его ниже
+              if (m.text) {
+                const commentDiv = document.createElement('div');
+                commentDiv.classList.add('meta');
+                commentDiv.style.marginTop = '4px';
+                commentDiv.textContent = m.text;
+                bubble.appendChild(commentDiv);
+              }
             }
 
             const meta = document.createElement('div');
@@ -229,27 +179,46 @@
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
 
-            // Иконка reply (скрыта по умолчанию)
-            const replyIcon = document.createElement('span');
-            replyIcon.classList.add('replyIcon');
-            replyIcon.textContent = '⟲';
-            replyIcon.onclick = (e) => {
+            // Иконка “три точки”
+            const moreIcon = document.createElement('span');
+            moreIcon.classList.add('moreIcon');
+            moreIcon.textContent = '⋮';
+            moreIcon.onclick = (e) => {
+              e.stopPropagation();
+              // Скрыть все другие попапы
+              document.querySelectorAll('.message.showPopup').forEach(el => {
+                el.classList.remove('showPopup');
+              });
+              // Показываем попап у текущего сообщения
+              div.classList.add('showPopup');
+            };
+
+            // Создаём попап «Ответить»
+            const replyPopup = document.createElement('div');
+            replyPopup.classList.add('replyPopup');
+            const replyBtn = document.createElement('button');
+            replyBtn.textContent = 'Ответить';
+            replyBtn.onclick = (e) => {
               e.stopPropagation();
               replyToId = m.id;
               renderReplyPreview(m.text ? m.text : '[файл]');
+              // Закрыть попап
+              div.classList.remove('showPopup');
             };
+            replyPopup.appendChild(replyBtn);
 
-            // Вместо свайпа — реагируем на double click/double tap
-            div.addEventListener('dblclick', () => {
-              div.classList.add('showReply');
-              setTimeout(() => {
-                div.classList.remove('showReply');
-              }, 2000);
-            });
-            div.appendChild(replyIcon);
+            div.appendChild(moreIcon);
+            div.appendChild(replyPopup);
             div.appendChild(bubble);
             div.appendChild(meta);
             msgContainer.appendChild(div);
+
+            // Скрываем попап при клике вне сообщения
+            document.addEventListener('click', (ev) => {
+              if (!div.contains(ev.target)) {
+                div.classList.remove('showPopup');
+              }
+            });
           });
 
           // Прокрутка вниз
@@ -343,6 +312,8 @@
         } catch (err) {
           alert('Не удалось отправить файл');
           console.error(err);
+        } finally {
+          modalFileInput.value = '';
         }
       });
     })();
