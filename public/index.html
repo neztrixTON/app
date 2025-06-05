@@ -6,260 +6,139 @@
     name="viewport" 
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
   />
-  <title>Чат</title>
+  <title>Чаты</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <header>
-    <span id="backBtn">&#8592;</span>
-    <div>
-      <div id="chatTitle">Чат</div>
-      <div id="status">офлайн</div>
-    </div>
+    <div id="chatTitle">Чаты</div>
   </header>
 
-  <div class="messages" id="messagesContainer"></div>
+  <div class="chat-list" id="chatList">
+    <!-- JS подгружает сюда список чатов -->
+  </div>
 
-  <div class="input-bar">
-    <textarea 
-      id="messageInput" 
-      placeholder="Введите сообщение..." 
-      rows="1"
-    ></textarea>
-    <button id="sendBtn" disabled>Отправить</button>
-    <input type="file" id="fileInput" style="display:none;" />
-    <button id="sendFileBtn">📎</button>
+  <!-- Кнопка “➕ Новый чат” -->
+  <button id="newChatBtn">＋</button>
+
+  <!-- Модальное окно “Новый чат” -->
+  <div id="modalOverlay">
+    <div id="modal">
+      <h3>Новый чат</h3>
+      <input 
+        type="text" 
+        id="newUserId" 
+        placeholder="Введите ID пользователя" 
+      />
+      <button id="createChatBtn">Создать чат</button>
+      <button id="closeModalBtn" class="cancel">Отмена</button>
+    </div>
   </div>
 
   <script>
     Telegram.WebApp.ready();
 
     (function() {
-      const params = new URLSearchParams(window.location.search);
-      const chatId = params.get('chatId');
-      const user = Telegram.WebApp.initDataUnsafe?.user;
-      if (!user || !chatId) {
-        document.getElementById('messagesContainer').innerHTML =
-          '<p style="padding:12px; text-align:center;">Неверные параметры.</p>';
+      const initData = Telegram.WebApp.initDataUnsafe || {};
+      const user = initData.user;
+      if (!user) {
+        document.getElementById('chatList').innerHTML =
+          '<p style="padding:12px; text-align:center;">Не удалось получить ID.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Определяем “другого” в chatId
-      const [u1, u2] = chatId.split('_');
-      const other = (u1 === userId ? u2 : u1);
+      const chatListEl   = document.getElementById('chatList');
+      const newBtn       = document.getElementById('newChatBtn');
+      const modalOverlay = document.getElementById('modalOverlay');
+      const closeModal   = document.getElementById('closeModalBtn');
+      const createChatBtn= document.getElementById('createChatBtn');
+      const newUserInput = document.getElementById('newUserId');
 
-      const chatTitleEl = document.getElementById('chatTitle');
-      const statusEl    = document.getElementById('status');
-      const backBtn     = document.getElementById('backBtn');
-      const msgContainer= document.getElementById('messagesContainer');
-      const inputEl     = document.getElementById('messageInput');
-      const sendBtn     = document.getElementById('sendBtn');
-      const fileInput   = document.getElementById('fileInput');
-      const sendFileBtn = document.getElementById('sendFileBtn');
+      // Загрузить список чатов
+      async function loadChats() {
+        try {
+          const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
+          if (!res.ok) throw new Error('Не удалось получить чаты');
+          const chats = await res.json();
+          chatListEl.innerHTML = '';
+          if (chats.length === 0) {
+            chatListEl.innerHTML = '<p style="padding:12px; text-align:center;">Чатов нет.</p>';
+            return;
+          }
+          chats.forEach(chat => {
+            const div = document.createElement('div');
+            div.className = 'chat-item';
+            div.onclick = () => openChat(chat.chatId);
 
-      chatTitleEl.textContent = `Чат с ${other}`;
+            const onlineColor = chat.online ? '#7CFC00' : '#888';
+            const statusText  = chat.online ? 'онлайн' : 'офлайн';
+            const unreadHTML  = chat.unreadCount > 0
+              ? `<span class="unread">${chat.unreadCount}</span>`
+              : '';
 
-      backBtn.onclick = () => {
-        window.location.href = 'index.html';
+            div.innerHTML = `
+              <div class="avatar"></div>
+              <div class="info">
+                <div class="title">${chat.title}</div>
+                <div class="subtitle">
+                  <span class="status" style="color:${onlineColor}">${statusText}</span>
+                  ${unreadHTML}
+                </div>
+              </div>
+            `;
+            chatListEl.appendChild(div);
+          });
+        } catch (err) {
+          chatListEl.innerHTML = `<p style="padding:12px; text-align:center;">Ошибка: ${err.message}</p>`;
+        }
+      }
+
+      // Открытие конкретного чата
+      function openChat(chatId) {
+        window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
+      }
+
+      // Показать модалку
+      newBtn.onclick = () => {
+        newUserInput.value = '';
+        modalOverlay.style.display = 'flex';
+      };
+      // Скрыть модалку
+      closeModal.onclick = () => {
+        modalOverlay.style.display = 'none';
       };
 
-      // Обновление статуса собеседника
-      async function updateStatus() {
-        try {
-          const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
-          if (!res.ok) throw new Error();
-          const data = await res.json();
-          statusEl.textContent = data.online ? 'онлайн' : 'офлайн';
-          statusEl.style.color   = data.online ? '#7CFC00' : '#888';
-        } catch(e) {
-          console.error('Не удалось получить статус:', e);
+      // Создать новый чат
+      createChatBtn.onclick = async () => {
+        const toId = newUserInput.value.trim();
+        if (!toId) {
+          alert('Введите ID пользователя');
+          return;
         }
-      }
-      updateStatus();
-      setInterval(updateStatus, 5000);
-
-      // Для reply: будем хранить id сообщения, на которое отвечаем
-      let replyToId = null;
-
-      function renderReplyPreview(text) {
-        // Если уже есть превью — удалим
-        const existing = document.getElementById('replyPreview');
-        if (existing) existing.remove();
-        if (!text) return;
-        // Создадим превью и вставим перед input-bar
-        const div = document.createElement('div');
-        div.id = 'replyPreview';
-        div.style.padding = '6px 12px';
-        div.style.backgroundColor = 'rgba(50,50,50,0.7)';
-        div.style.borderLeft = '3px solid #666';
-        div.style.margin = '8px 20px 0 20px';
-        div.style.borderRadius = '8px';
-        div.style.maxWidth = '80%';
-        div.style.whiteSpace = 'nowrap';
-        div.style.overflow = 'hidden';
-        div.style.textOverflow = 'ellipsis';
-        div.style.fontSize = '14px';
-        div.textContent = `Ответ на: ${text}`;
-        document.body.insertBefore(div, document.querySelector('.input-bar'));
-      }
-
-      // Загрузка и рендер сообщений
-      async function loadMessages() {
-        try {
-          const res = await fetch(
-            `/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`
-          );
-          if (!res.ok) throw new Error('Не удалось загрузить сообщения');
-          const msgs = await res.json();
-          msgContainer.innerHTML = '';
-
-          msgs.forEach(m => {
-            const div = document.createElement('div');
-            div.classList.add('message', (m.from === userId ? 'me' : 'you'));
-            div.dataset.id = m.id;
-            div.classList.add('replyable');
-
-            // Если есть replyTo → вставляем preview внутри
-            if (m.replyTo) {
-              const replied = msgs.find(x => x.id === m.replyTo);
-              if (replied) {
-                const replyDiv = document.createElement('div');
-                replyDiv.classList.add('replyTo');
-                replyDiv.textContent = replied.text
-                  ? replied.text
-                  : '[файл]';
-                div.appendChild(replyDiv);
-              }
-            }
-
-            const bubble = document.createElement('div');
-            bubble.classList.add('bubble');
-            if (m.text) bubble.textContent = m.text;
-            if (m.file) {
-              const link = document.createElement('a');
-              link.href = m.file;
-              link.textContent = '📎 Файл';
-              link.classList.add('fileLink');
-              link.target = '_blank';
-              bubble.appendChild(link);
-            }
-
-            const meta = document.createElement('div');
-            meta.classList.add('meta');
-            const date = new Date(m.ts);
-            const hh = String(date.getHours()).padStart(2, '0');
-            const mm = String(date.getMinutes()).padStart(2, '0');
-            meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
-
-            // Иконка reply
-            const replyIcon = document.createElement('span');
-            replyIcon.classList.add('replyIcon');
-            replyIcon.textContent = '⟲';
-            replyIcon.onclick = (e) => {
-              e.stopPropagation();
-              replyToId = m.id;
-              renderReplyPreview(m.text ? m.text : '[файл]');
-            };
-
-            // Свайп: touchstart/touchend для показа replyIcon
-            div.addEventListener('touchstart', (e) => {
-              div.dataset.touchStartX = e.changedTouches[0].clientX;
-            });
-            div.addEventListener('touchend', (e) => {
-              const startX = parseFloat(div.dataset.touchStartX || 0);
-              const endX = e.changedTouches[0].clientX;
-              if (endX - startX > 80) {
-                div.classList.add('showReply');
-              } else {
-                div.classList.remove('showReply');
-              }
-            });
-
-            div.appendChild(replyIcon);
-            div.appendChild(bubble);
-            div.appendChild(meta);
-            msgContainer.appendChild(div);
-          });
-
-          // Прокрутка вниз
-          msgContainer.scrollTop = msgContainer.scrollHeight;
-        } catch (err) {
-          console.error(err);
+        if (toId === userId) {
+          alert('Нельзя создать чат с самим собой');
+          return;
         }
-      }
-
-      loadMessages();
-      setInterval(loadMessages, 1000);
-
-      // --- Авто‐расширение textarea по вводу ---
-      function autoResizeTextarea() {
-        inputEl.style.height = 'auto';
-        inputEl.style.height = inputEl.scrollHeight + 'px';
-      }
-      inputEl.addEventListener('input', () => {
-        autoResizeTextarea();
-        sendBtn.disabled = inputEl.value.trim() === '';
-      });
-
-      // Отправка текстового сообщения
-      sendBtn.addEventListener('click', async () => {
-        const text = inputEl.value.trim();
-        if (!text) return;
-        sendBtn.disabled = true;
         try {
-          await fetch('/api/messages/send', {
+          const res = await fetch('/api/create-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chatId,
-              from: userId,
-              to: other,
-              text,
-              replyTo: replyToId
-            })
+            body: JSON.stringify({ from: userId, to: toId })
           });
-          replyToId = null;
-          renderReplyPreview(null);
-          inputEl.value = '';
-          autoResizeTextarea();
-          await loadMessages();
+          if (!res.ok) throw new Error('Не удалось создать чат');
+          const data = await res.json();
+          modalOverlay.style.display = 'none';
+          openChat(data.chatId);
         } catch (err) {
           alert('Ошибка: ' + err.message);
-          console.error(err);
-        } finally {
-          sendBtn.disabled = inputEl.value.trim() === '';
-        }
-      });
-
-      // Отправка файла
-      sendFileBtn.addEventListener('click', () => fileInput.click());
-      fileInput.onchange = async () => {
-        if (!fileInput.files.length) return;
-        const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('chatId', chatId);
-        formData.append('from', userId);
-        formData.append('to', other);
-        if (replyToId) formData.append('replyTo', replyToId);
-
-        try {
-          await fetch('/api/messages/send-file', {
-            method: 'POST',
-            body: formData
-          });
-          replyToId = null;
-          renderReplyPreview(null);
-          await loadMessages();
-        } catch (err) {
-          alert('Не удалось отправить файл');
-          console.error(err);
-        } finally {
-          fileInput.value = '';
         }
       };
+
+      // Первая загрузка + обновление каждые 5 сек
+      loadChats();
+      setInterval(loadChats, 5000);
     })();
   </script>
 </body>
