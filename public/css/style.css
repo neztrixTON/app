@@ -12,80 +12,75 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #0d0d0d;
-  color: #f0f0f0;
+  background-color: #000;
+  color: #fff;
 }
 
-/* --- Header общий --- */
+/* --- Общие стили для header в обоих HTML --- */
 header {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 20px;
-  background-color: #1a1a1a;
+  padding: 16px;
+  background-color: #111;
   border-bottom: 1px solid #333;
   position: relative;
 }
 
 header #backBtn {
   position: absolute;
-  left: 20px;
-  font-size: 22px;
+  left: 16px;
+  font-size: 20px;
   cursor: pointer;
-  color: #f0f0f0;
+  color: #fff;
 }
 
 header #chatTitle {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 header #status {
   font-size: 12px;
-  margin-top: 4px;
-  color: #888;
+  margin-top: 2px;
 }
 
-/* --- Список чатов (index.html) --- */
+/* --- Стили для списка чатов (index.html) --- */
 .chat-list {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 100px; /* место для кнопки и нижнего отступа */
+  padding-bottom: 80px; /* отступ, чтобы кнопка не перекрывала контент */
 }
 
 .chat-item {
   display: flex;
   align-items: center;
-  padding: 14px 20px;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 12px;
+  border-bottom: 1px solid #333;
   cursor: pointer;
-  transition: background-color 0.15s;
 }
 
 .chat-item:hover {
-  background-color: #1f1f1f;
+  background-color: #111;
 }
 
 .chat-item .avatar {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   background-color: #444;
   border-radius: 50%;
-  margin-right: 14px;
-  flex-shrink: 0;
+  margin-right: 12px;
 }
 
 .chat-item .info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .chat-item .info .title {
   font-size: 16px;
-  font-weight: 500;
-  color: #e0e0e0;
+  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,7 +91,6 @@ header #status {
   color: #aaa;
   display: flex;
   align-items: center;
-  margin-top: 4px;
 }
 
 .chat-item .info .subtitle .status {
@@ -105,41 +99,31 @@ header #status {
 }
 
 .chat-item .info .subtitle .unread {
-  background-color: #e53935;
+  background-color: #f00;
   color: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 2px 6px;
   font-size: 10px;
   margin-left: auto;
-  flex-shrink: 0;
 }
 
-/* --- Кнопка “➕ Новый чат” --- */
+/* --- Кнопка “➕ Новый чат” (index.html) --- */
 #newChatBtn {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 58px;
-  height: 58px;
-  background-color: #2979ff;
+  width: 56px;
+  height: 56px;
+  background-color: #006cff;
   border: none;
   border-radius: 50%;
   color: #fff;
-  font-size: 34px;
-  line-height: 58px;
+  font-size: 32px;
+  line-height: 56px;
   text-align: center;
   cursor: pointer;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
   z-index: 10;
-  transition: background-color 0.2s, transform 0.1s;
-}
-
-#newChatBtn:hover {
-  background-color: #5393ff;
-  transform: translateY(-2px);
-}
-#newChatBtn:active {
-  transform: translateY(0);
 }
 
 /* --- Оверлей и модалка “Новый чат” --- */
@@ -149,7 +133,7 @@ header #status {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0,0,0,0.85);
+  background-color: rgba(0,0,0,0.7);
   display: none;
   justify-content: center;
   align-items: center;
@@ -157,77 +141,57 @@ header #status {
 }
 
 #modal {
-  background-color: #1e1e1e;
-  padding: 24px 28px;
+  background-color: #111;
+  padding: 24px;
   border-radius: 12px;
-  width: 88%;
+  width: 90%;
   max-width: 360px;
   text-align: center;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
 }
 
 #modal h3 {
-  margin-bottom: 16px;
-  font-size: 20px;
-  color: #f0f0f0;
+  margin-bottom: 12px;
+  font-size: 18px;
 }
 
 #modal input {
   width: 100%;
-  padding: 10px 14px;
-  margin-bottom: 14px;
+  padding: 10px;
+  margin-bottom: 12px;
   border: none;
-  border-radius: 8px;
-  background-color: #2a2a2a;
-  color: #f0f0f0;
+  border-radius: 6px;
+  background-color: #222;
+  color: #fff;
   font-size: 14px;
-}
-
-#modal input::placeholder {
-  color: #888;
 }
 
 #modal button {
   width: 100%;
-  padding: 12px 0;
-  margin-top: 8px;
-  background-color: #2979ff;
+  padding: 12px;
+  background-color: #006cff;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   color: #fff;
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: bold;
+  font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-#modal button:hover {
-  background-color: #5393ff;
-}
-
-#modal button.cancel {
+#modal button:nth-child(3) {
   background-color: #444;
+  margin-top: 8px;
 }
 
-#modal button.cancel:hover {
-  background-color: #555;
-}
-
-
-/* --- Страница чата (chat.html) --- */
-/* .messages теперь занимает всё доступное место между header и .input-bar */
+/* --- Стили для страницы чата (chat.html) --- */
 .messages {
-  flex: 1 1 auto;
+  flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
-  /* оставляем нижний паддинг, чтобы последнее сообщение не «склеивалось» с input-bar */
-  padding-bottom: 140px;
+  padding: 12px;
+  padding-bottom: 100px; /* отступ для панели ввода */
 }
-
-/* Оставшиеся правила для сообщений, reply, кнопок и т. д. без изменений */
 
 .message {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -242,160 +206,57 @@ header #status {
 }
 
 .message .bubble {
-  position: relative;
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background-color: #2f2f2f;
-  color: #f0f0f0;
-  font-size: 15px;
-  line-height: 1.4;
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background-color: #222;
+  color: #fff;
   word-wrap: break-word;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
 }
 
 .message.me .bubble {
-  background-color: #2979ff;
-  color: #fff;
+  background-color: #006cff;
 }
 
 .message .meta {
-  font-size: 11px;
-  color: #888;
-  margin-top: 6px;
+  font-size: 10px;
+  color: #666;
+  margin-top: 4px;
 }
 
-/* Иконка «ответить» внутри bubble */
+/* Иконка reply (покажем при наведении/свайпе) */
 .message .replyIcon {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 16px;
-  color: #bbb;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.2s, background-color 0.2s;
-}
-
-.message .replyIcon:hover {
-  color: #fff;
-  background-color: rgba(255,255,255,0.1);
-}
-
-.message .fileLink {
-  display: flex;
-  align-items: center;
-  color: #80cfff;
-  text-decoration: none;
-  font-size: 15px;
-  margin-top: 4px;
-}
-
-.message .fileLink:hover {
-  text-decoration: underline;
-}
-
-.message .fileComment {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #ccc;
-}
-
-.message .replyTo {
-  font-size: 13px;
-  color: #ccc;
-  margin-bottom: 6px;
-  padding: 6px 10px;
-  background-color: rgba(50, 50, 50, 0.7);
-  border-left: 3px solid #666;
-  border-radius: 8px;
-  max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* Попап для загрузки файла + комментария */
-#fileModalOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.85);
-  display: none;
-  justify-content: center;
-  align-items: center;
-  z-index: 30;
-}
-
-#fileModalOverlay > div {
-  background-color: #1e1e1e;
-  padding: 20px 24px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 360px;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
-}
-
-#fileModalOverlay h3 {
-  color: #f0f0f0;
-  margin-bottom: 12px;
+  top: 50%;
+  left: -28px;
+  transform: translateY(-50%);
   font-size: 18px;
-}
-
-#fileModalOverlay input[type="file"] {
-  display: block;
-  margin-bottom: 12px;
-  color: #f0f0f0;
-}
-
-#fileModalOverlay textarea {
-  width: 100%;
-  padding: 10px 12px;
-  background-color: #2a2a2a;
-  color: #f0f0f0;
-  font-size: 14px;
-  border: none;
-  border-radius: 8px;
-  min-height: 60px;
-  resize: none;
-  margin-bottom: 12px;
-}
-
-#fileModalOverlay textarea::placeholder {
   color: #888;
-}
-
-#fileModalOverlay button {
-  width: 100%;
-  padding: 10px 0;
-  margin-top: 8px;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
+  display: none;
   cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-#sendFileWithCommentBtn {
-  background-color: #2979ff;
+/* При классe .showReply в сообщении показать иконку */
+.message.showReply .replyIcon {
+  display: block;
 }
 
-#sendFileWithCommentBtn:hover {
-  background-color: #5393ff;
-}
-
-#cancelFileBtn {
-  background-color: #444;
-}
-
-#cancelFileBtn:hover {
-  background-color: #555;
+/* Подчёркивание текста реплая */
+.message .replyTo {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background-color: #111;
+  border-left: 2px solid #555;
+  border-radius: 4px;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Поле ввода внизу (chat.html) --- */
@@ -405,102 +266,57 @@ header #status {
   left: 0;
   width: 100%;
   display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  background-color: #1a1a1a;
+  padding: 8px;
+  background-color: #111;
   border-top: 1px solid #333;
 }
 
-.input-bar textarea {
+.input-bar input {
   flex: 1;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: none;
   border-radius: 20px;
-  background-color: #2a2a2a;
-  color: #f0f0f0;
-  font-size: 15px;
-  line-height: 1.4;
-  resize: none;
-  max-height: 100px;
-  overflow-y: auto;
-}
-
-.input-bar textarea::placeholder {
-  color: #888;
-}
-
-#sendBtn {
-  background-color: #2979ff;
-  border: none;
-  border-radius: 20px;
+  background-color: #222;
   color: #fff;
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-  padding: 10px 16px;
-  margin-left: 8px;
-  transition: background-color 0.2s;
+  font-size: 14px;
 }
 
-#sendBtn:disabled {
+.input-bar button {
+  margin-left: 8px;
+  background-color: #006cff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.input-bar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-#sendBtn:hover:enabled {
-  background-color: #5393ff;
-}
-
-#sendFileBtn {
-  background-color: #444;
-  font-size: 18px;
-  padding: 10px;
-  margin-left: 8px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-}
-
-#sendFileBtn:hover {
-  background-color: #555;
-  transform: translateY(-1px);
-}
-
-#sendFileBtn:active {
-  transform: translateY(0);
-}
-
-/* --- Многострочный ввод → auto-resize textarea --- */
-.input-bar textarea {
-  min-height: 36px;
 }
 
 /* --- Адаптация под узкие экраны --- */
 @media (max-width: 480px) {
   header { padding: 12px; }
-  header #chatTitle { font-size: 18px; }
-  header #status { font-size: 11px; }
-  .chat-item .avatar { width: 38px; height: 38px; margin-right: 10px; }
-  .chat-item .info .title { font-size: 15px; }
-  .chat-item .info .subtitle { font-size: 11px; }
+  #chatTitle { font-size: 16px; }
+  header #status { font-size: 10px; }
+  .chat-item .info .title { font-size: 14px; }
+  .chat-item .info .subtitle { font-size: 10px; }
   #newChatBtn {
-    width: 52px;
-    height: 52px;
-    font-size: 30px;
-    line-height: 52px;
+    width: 48px;
+    height: 48px;
+    font-size: 28px;
+    line-height: 48px;
     bottom: 16px;
     right: 16px;
   }
-  #modal { padding: 20px; }
-  #modal h3 { font-size: 18px; }
+  #modal { padding: 16px; }
   #modal input { padding: 8px; font-size: 14px; }
-  #modal button { padding: 10px 0; font-size: 14px; }
-  .messages { padding: 12px 16px; padding-bottom: 120px; }
-  .message .bubble { font-size: 14px; }
-  .message .meta { font-size: 10px; }
-  .message .replyIcon { top: 4px; right: 4px; font-size: 14px; }
-  #sendBtn { font-size: 14px; padding: 8px 12px; }
-  #sendFileBtn { font-size: 16px; padding: 8px; }
-  .input-bar textarea { font-size: 14px; }
+  #modal button { padding: 10px; font-size: 14px; }
+  .message .bubble { font-size: 13px; }
+  .input-bar input { font-size: 13px; }
+  .input-bar button { font-size: 13px; padding: 6px 12px; }
 }
