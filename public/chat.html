@@ -19,24 +19,75 @@
     </div>
   </header>
 
-  <!-- Вот контейнер сообщений, теперь растягивается flex’ом и может скроллиться -->
   <div class="messages" id="messagesContainer"></div>
 
   <!-- Модалка для загрузки файла + комментария -->
-  <div id="fileModalOverlay">
-    <div>
-      <h3>Отправить файл</h3>
-      <input type="file" id="modalFileInput" />
+  <div id="fileModalOverlay" style="
+        display:none;
+        position:fixed; top:0; left:0; width:100%; height:100%;
+        background-color:rgba(0,0,0,0.85);
+        justify-content:center; align-items:center; z-index:30;">
+    <div style="
+          background-color:#1e1e1e;
+          padding:20px 24px;
+          border-radius:10px;
+          width:90%; max-width:360px;
+          box-shadow:0 6px 16px rgba(0,0,0,0.5);
+        ">
+      <h3 style="color:#f0f0f0; margin-bottom:12px; font-size:18px;">Отправить файл</h3>
+      <input 
+        type="file" 
+        id="modalFileInput" 
+        style="
+          display:block; margin-bottom:12px;
+          color:#f0f0f0;
+        "
+      />
       <textarea 
         id="fileComment" 
-        placeholder="Комментарий (необязательно)"
+        placeholder="Комментарий (необязательно)" 
+        style="
+          width:100%;
+          padding:10px 12px;
+          background-color:#2a2a2a;
+          color:#f0f0f0;
+          font-size:14px;
+          border:none;
+          border-radius:8px;
+          min-height:60px;
+          resize:none;
+          margin-bottom:12px;
+        "
       ></textarea>
-      <button id="sendFileWithCommentBtn">Отправить</button>
-      <button id="cancelFileBtn" class="cancel">Отмена</button>
+      <button id="sendFileWithCommentBtn" style="
+          width:100%;
+          padding:12px 0;
+          background-color:#2979ff;
+          border:none;
+          border-radius:8px;
+          color:#fff;
+          font-size:15px;
+          font-weight:600;
+          cursor:pointer;
+          margin-bottom:8px;
+        ">
+        Отправить
+      </button>
+      <button id="cancelFileBtn" class="cancel" style="
+          width:100%;
+          padding:10px 0;
+          background-color:#444;
+          border:none;
+          border-radius:8px;
+          color:#fff;
+          font-size:14px;
+          cursor:pointer;
+        ">
+        Отмена
+      </button>
     </div>
   </div>
 
-  <!-- Фиксированная панель ввода внизу, поверх .messages -->
   <div class="input-bar">
     <textarea 
       id="messageInput" 
@@ -44,7 +95,13 @@
       rows="1"
     ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
-    <button id="sendFileBtn">📎</button>
+    <button id="sendFileBtn" style="
+        background-color:transparent; 
+        font-size:20px; 
+        padding:8px; 
+        margin-left:8px; 
+        cursor:pointer;
+      ">📎</button>
   </div>
 
   <script>
@@ -61,7 +118,7 @@
       }
       const userId = String(user.id);
 
-      // Определим «другого» по chatId
+      // Определяем “другого” в chatId
       const [u1, u2] = chatId.split('_');
       const other = (u1 === userId ? u2 : u1);
 
@@ -86,7 +143,7 @@
         window.location.href = 'index.html';
       };
 
-      // Обновить статус каждые 5 секунд
+      // Обновление статуса собеседника
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
@@ -101,7 +158,7 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // reply: id сообщения, на которое мы отвечаем
+      // Для reply: запоминаем ID сообщения, на которое отвечаем
       let replyToId = null;
 
       function renderReplyPreview(text) {
@@ -124,7 +181,7 @@
         document.body.insertBefore(div, document.querySelector('.input-bar'));
       }
 
-      // Загрузить и отрендерить все сообщения
+      // Загрузка и рендер сообщений
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -137,8 +194,10 @@
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
+            div.dataset.id = m.id;
+            div.classList.add('replyable');
 
-            // Если это ответ (m.replyTo), показ отвечаемого текста или “[файл]”
+            // Если есть replyTo → вставляем блок с текстом оригинала
             if (m.replyTo) {
               const replied = msgs.find(x => x.id === m.replyTo);
               if (replied) {
@@ -151,16 +210,9 @@
               }
             }
 
-            // «Пузырёк» с содержимым
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
-
-            // Текстовое сообщение (либо комментарий к файлу)
-            if (m.text && !m.file) {
-              bubble.textContent = m.text;
-            }
-
-            // Если есть файл
+            if (m.text) bubble.textContent = m.text;
             if (m.file) {
               const link = document.createElement('a');
               link.href = m.file;
@@ -168,41 +220,39 @@
               link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
-              // Комментарий под ссылкой
-              if (m.text) {
-                const commentDiv = document.createElement('div');
-                commentDiv.classList.add('fileComment');
-                commentDiv.textContent = m.text;
-                bubble.appendChild(commentDiv);
-              }
             }
 
-            // Добавляем иконку «↩» (reply) прямо в правом верхнем углу bubble
-            const replyIcon = document.createElement('span');
-            replyIcon.classList.add('replyIcon');
-            replyIcon.textContent = '↩';
-            replyIcon.onclick = (e) => {
-              e.stopPropagation();
-              replyToId = m.id;
-              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
-            };
-            bubble.appendChild(replyIcon);
-
-            div.appendChild(bubble);
-
-            // Мета-информация: время и «Вы/Собеседник»
             const meta = document.createElement('div');
             meta.classList.add('meta');
             const date = new Date(m.ts);
             const hh = String(date.getHours()).padStart(2, '0');
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
-            div.appendChild(meta);
 
+            // Иконка reply (скрыта по умолчанию)
+            const replyIcon = document.createElement('span');
+            replyIcon.classList.add('replyIcon');
+            replyIcon.textContent = '⟲';
+            replyIcon.onclick = (e) => {
+              e.stopPropagation();
+              replyToId = m.id;
+              renderReplyPreview(m.text ? m.text : '[файл]');
+            };
+
+            // Вместо свайпа — реагируем на double click/double tap
+            div.addEventListener('dblclick', () => {
+              div.classList.add('showReply');
+              setTimeout(() => {
+                div.classList.remove('showReply');
+              }, 2000);
+            });
+            div.appendChild(replyIcon);
+            div.appendChild(bubble);
+            div.appendChild(meta);
             msgContainer.appendChild(div);
           });
 
-          // Прокручиваем вниз
+          // Прокрутка вниз
           msgContainer.scrollTop = msgContainer.scrollHeight;
         } catch (err) {
           console.error(err);
@@ -293,8 +343,6 @@
         } catch (err) {
           alert('Не удалось отправить файл');
           console.error(err);
-        } finally {
-          modalFileInput.value = '';
         }
       });
     })();
