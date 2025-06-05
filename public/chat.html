@@ -19,6 +19,7 @@
     </div>
   </header>
 
+  <!-- Вот контейнер сообщений, теперь растягивается flex’ом и может скроллиться -->
   <div class="messages" id="messagesContainer"></div>
 
   <!-- Модалка для загрузки файла + комментария -->
@@ -35,6 +36,7 @@
     </div>
   </div>
 
+  <!-- Фиксированная панель ввода внизу, поверх .messages -->
   <div class="input-bar">
     <textarea 
       id="messageInput" 
@@ -59,7 +61,7 @@
       }
       const userId = String(user.id);
 
-      // Определяем “другого” в chatId
+      // Определим «другого» по chatId
       const [u1, u2] = chatId.split('_');
       const other = (u1 === userId ? u2 : u1);
 
@@ -84,7 +86,7 @@
         window.location.href = 'index.html';
       };
 
-      // Обновление статуса собеседника
+      // Обновить статус каждые 5 секунд
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
@@ -99,7 +101,7 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // Для reply: будем хранить id сообщения, на которое отвечаем
+      // reply: id сообщения, на которое мы отвечаем
       let replyToId = null;
 
       function renderReplyPreview(text) {
@@ -122,7 +124,7 @@
         document.body.insertBefore(div, document.querySelector('.input-bar'));
       }
 
-      // Загрузка и рендер сообщений
+      // Загрузить и отрендерить все сообщения
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -135,9 +137,8 @@
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
-            div.dataset.id = m.id;
 
-            // Если есть replyTo → вставляем блок с текстом оригинала
+            // Если это ответ (m.replyTo), показ отвечаемого текста или “[файл]”
             if (m.replyTo) {
               const replied = msgs.find(x => x.id === m.replyTo);
               if (replied) {
@@ -150,13 +151,15 @@
               }
             }
 
-            // Собственное «пузырёк»
+            // «Пузырёк» с содержимым
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
-            // Если есть текст (текстовое сообщение, либо комментарий к файлу)
+
+            // Текстовое сообщение (либо комментарий к файлу)
             if (m.text && !m.file) {
               bubble.textContent = m.text;
             }
+
             // Если есть файл
             if (m.file) {
               const link = document.createElement('a');
@@ -165,7 +168,7 @@
               link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
-              // Комментарий к файлу:
+              // Комментарий под ссылкой
               if (m.text) {
                 const commentDiv = document.createElement('div');
                 commentDiv.classList.add('fileComment');
@@ -174,7 +177,7 @@
               }
             }
 
-            // Иконка «ответить» прямо в правом верхнем углу bubble
+            // Добавляем иконку «↩» (reply) прямо в правом верхнем углу bubble
             const replyIcon = document.createElement('span');
             replyIcon.classList.add('replyIcon');
             replyIcon.textContent = '↩';
@@ -187,7 +190,7 @@
 
             div.appendChild(bubble);
 
-            // Время/аватар
+            // Мета-информация: время и «Вы/Собеседник»
             const meta = document.createElement('div');
             meta.classList.add('meta');
             const date = new Date(m.ts);
@@ -199,7 +202,7 @@
             msgContainer.appendChild(div);
           });
 
-          // Прокрутка вниз
+          // Прокручиваем вниз
           msgContainer.scrollTop = msgContainer.scrollHeight;
         } catch (err) {
           console.error(err);
