@@ -19,13 +19,13 @@
     </div>
   </header>
 
-  <!-- Контейнер, где рендерятся все сообщения -->
+  <!-- Контейнер для сообщений -->
   <div class="messages" id="messagesContainer"></div>
 
-  <!-- Кнопка «скролл к низу» -->
+  <!-- Кнопка «⬇︎» для прокрутки к самому низу -->
   <button id="scrollToBottomBtn">⬇︎</button>
 
-  <!-- Модалка для загрузки файла + комментария -->
+  <!-- Модалка для отправки файла + комментария -->
   <div id="fileModalOverlay">
     <div>
       <h3>Отправить файл</h3>
@@ -64,7 +64,7 @@
       }
       const userId = String(user.id);
 
-      // Определим «другого» по chatId
+      // Определим «другого» участника переписки по chatId
       const [u1, u2] = chatId.split('_');
       const other = (u1 === userId ? u2 : u1);
 
@@ -77,7 +77,7 @@
       const sendFileBtn       = document.getElementById('sendFileBtn');
       const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
 
-      // Модалка для файла
+      // Элементы модалки «файл + комментарий»
       const fileModalOverlay       = document.getElementById('fileModalOverlay');
       const modalFileInput         = document.getElementById('modalFileInput');
       const fileCommentInput       = document.getElementById('fileComment');
@@ -86,11 +86,12 @@
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
+      // Возвращаемся к списку чатов
       backBtn.onclick = () => {
         window.location.href = 'index.html';
       };
 
-      // --- Обновление статуса собеседника ---
+      // Обновление статуса собеседника (онлайн/офлайн)
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
@@ -105,9 +106,10 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // --- Reply: id сообщения, на которое отвечаем ---
+      // replyToId — ID сообщения, на которое пользователь хочет ответить
       let replyToId = null;
 
+      // Функция рендерит превью «Ответ на: ...» над полем ввода
       function renderReplyPreview(text) {
         const existing = document.getElementById('replyPreview');
         if (existing) existing.remove();
@@ -128,7 +130,7 @@
         document.body.insertBefore(div, document.querySelector('.input-bar'));
       }
 
-      // --- Загрузка и рендер сообщений ---
+      // Загрузка и рендер всех сообщений из БД (chat-db.json)
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -136,6 +138,10 @@
           );
           if (!res.ok) throw new Error('Не удалось загрузить сообщения');
           const msgs = await res.json();
+
+          // Проверяем, был ли пользователь внизу перед обновлением
+          const wasAtBottom = (msgContainer.scrollTop + msgContainer.clientHeight) >= (msgContainer.scrollHeight - 50);
+
           msgContainer.innerHTML = '';
 
           msgs.forEach(m => {
@@ -155,16 +161,15 @@
               }
             }
 
-            // «Пузырёк» с содержимым
+            // Пузырёк сообщения
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
 
-            // Текстовое сообщение (либо комментарий к файлу)
+            // Если есть текст (текстовое сообщение без файла)
             if (m.text && !m.file) {
               bubble.textContent = m.text;
             }
-
-            // Если есть файл
+            // Если есть файл — показываем ссылку и комментарий
             if (m.file) {
               const link = document.createElement('a');
               link.href = m.file;
@@ -206,27 +211,30 @@
             msgContainer.appendChild(div);
           });
 
-          // Авто-скролл вниз
-          msgContainer.scrollTop = msgContainer.scrollHeight;
-
-          // Скрываем кнопку «⬇︎», так как мы уже внизу
-          scrollToBottomBtn.style.display = 'none';
+          // Если пользователь был внизу, скроллим вниз снова:
+          // иначе оставляем текущую позицию прокрутки
+          if (wasAtBottom) {
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+            scrollToBottomBtn.style.display = 'none';
+          }
         } catch (err) {
           console.error(err);
         }
       }
 
+      // Первоначальная загрузка + автообновление сообщений каждую секунду
       loadMessages();
       setInterval(loadMessages, 1000);
 
-      // --- Обработка скролла в .messages: если не внизу, показываем кнопку ↓ ---
+      // Обработчик прокрутки .messages: если пользователь уехал вверх,
+      // показываем кнопку «⬇︎». Когда он возвращается почти вниз, скрываем кнопку.
       msgContainer.addEventListener('scroll', () => {
-        const threshold = 50; // пикселей до низа
         const distanceFromBottom = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
-        if (distanceFromBottom > threshold) {
-          // если сильно прокручены вверх → показать кнопку
+        if (distanceFromBottom > 50) {
+          // Пользователь прокрутил вверх, показываем кнопку
           scrollToBottomBtn.style.display = 'flex';
         } else {
+          // Почти внизу — скрываем кнопку
           scrollToBottomBtn.style.display = 'none';
         }
       });
@@ -237,7 +245,7 @@
         scrollToBottomBtn.style.display = 'none';
       });
 
-      // --- Авто‐расширение textarea по вводу ---
+      // Авто‐расширение textarea по вводу
       function autoResizeTextarea() {
         inputEl.style.height = 'auto';
         inputEl.style.height = inputEl.scrollHeight + 'px';
@@ -247,7 +255,7 @@
         sendBtn.disabled = inputEl.value.trim() === '';
       });
 
-      // --- Отправка текстового сообщения ---
+      // Отправка текстового сообщения
       sendBtn.addEventListener('click', async () => {
         const text = inputEl.value.trim();
         if (!text) return;
@@ -268,7 +276,7 @@
           renderReplyPreview(null);
           inputEl.value = '';
           autoResizeTextarea();
-          await loadMessages();
+          await loadMessages(); // обновляем и, если нужно, скроллим вниз
         } catch (err) {
           alert('Ошибка: ' + err.message);
           console.error(err);
@@ -277,19 +285,19 @@
         }
       });
 
-      // --- Показать модалку для файла ---
+      // Показать модалку для файла
       sendFileBtn.addEventListener('click', () => {
         modalFileInput.value = '';
         fileCommentInput.value = '';
         fileModalOverlay.style.display = 'flex';
       });
 
-      // --- Отмена загрузки файла ---
+      // Отмена загрузки файла
       cancelFileBtn.addEventListener('click', () => {
         fileModalOverlay.style.display = 'none';
       });
 
-      // --- Отправка файла + комментария ---
+      // Отправка файла + комментария
       sendFileWithCommentBtn.addEventListener('click', async () => {
         if (!modalFileInput.files.length) {
           alert('Выберите файл');
