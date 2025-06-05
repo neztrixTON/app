@@ -21,6 +21,73 @@
 
   <div class="messages" id="messagesContainer"></div>
 
+  <!-- Модалка для загрузки файла + комментария -->
+  <div id="fileModalOverlay" style="
+        display:none;
+        position:fixed; top:0; left:0; width:100%; height:100%;
+        background-color:rgba(0,0,0,0.85);
+        justify-content:center; align-items:center; z-index:30;">
+    <div style="
+          background-color:#1e1e1e;
+          padding:20px 24px;
+          border-radius:10px;
+          width:90%; max-width:360px;
+          box-shadow:0 6px 16px rgba(0,0,0,0.5);
+        ">
+      <h3 style="color:#f0f0f0; margin-bottom:12px; font-size:18px;">Отправить файл</h3>
+      <input 
+        type="file" 
+        id="modalFileInput" 
+        style="
+          display:block; margin-bottom:12px;
+          color:#f0f0f0;
+        "
+      />
+      <textarea 
+        id="fileComment" 
+        placeholder="Комментарий (необязательно)" 
+        style="
+          width:100%;
+          padding:10px 12px;
+          background-color:#2a2a2a;
+          color:#f0f0f0;
+          font-size:14px;
+          border:none;
+          border-radius:8px;
+          min-height:60px;
+          resize:none;
+          margin-bottom:12px;
+        "
+      ></textarea>
+      <button id="sendFileWithCommentBtn" style="
+          width:100%;
+          padding:12px 0;
+          background-color:#2979ff;
+          border:none;
+          border-radius:8px;
+          color:#fff;
+          font-size:15px;
+          font-weight:600;
+          cursor:pointer;
+          margin-bottom:8px;
+        ">
+        Отправить
+      </button>
+      <button id="cancelFileBtn" class="cancel" style="
+          width:100%;
+          padding:10px 0;
+          background-color:#444;
+          border:none;
+          border-radius:8px;
+          color:#fff;
+          font-size:14px;
+          cursor:pointer;
+        ">
+        Отмена
+      </button>
+    </div>
+  </div>
+
   <div class="input-bar">
     <textarea 
       id="messageInput" 
@@ -28,8 +95,13 @@
       rows="1"
     ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
-    <input type="file" id="fileInput" style="display:none;" />
-    <button id="sendFileBtn">📎</button>
+    <button id="sendFileBtn" style="
+        background-color:transparent; 
+        font-size:20px; 
+        padding:8px; 
+        margin-left:8px; 
+        cursor:pointer;
+      ">📎</button>
   </div>
 
   <script>
@@ -56,8 +128,14 @@
       const msgContainer= document.getElementById('messagesContainer');
       const inputEl     = document.getElementById('messageInput');
       const sendBtn     = document.getElementById('sendBtn');
-      const fileInput   = document.getElementById('fileInput');
       const sendFileBtn = document.getElementById('sendFileBtn');
+
+      // Модалка для файла
+      const fileModalOverlay       = document.getElementById('fileModalOverlay');
+      const modalFileInput         = document.getElementById('modalFileInput');
+      const fileCommentInput       = document.getElementById('fileComment');
+      const sendFileWithCommentBtn = document.getElementById('sendFileWithCommentBtn');
+      const cancelFileBtn          = document.getElementById('cancelFileBtn');
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
@@ -80,15 +158,13 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // Для reply: будем хранить id сообщения, на которое отвечаем
+      // Для reply: запоминаем ID сообщения, на которое отвечаем
       let replyToId = null;
 
       function renderReplyPreview(text) {
-        // Если уже есть превью — удалим
         const existing = document.getElementById('replyPreview');
         if (existing) existing.remove();
         if (!text) return;
-        // Создадим превью и вставим перед input-bar
         const div = document.createElement('div');
         div.id = 'replyPreview';
         div.style.padding = '6px 12px';
@@ -121,7 +197,7 @@
             div.dataset.id = m.id;
             div.classList.add('replyable');
 
-            // Если есть replyTo → вставляем preview внутри
+            // Если есть replyTo → вставляем блок с текстом оригинала
             if (m.replyTo) {
               const replied = msgs.find(x => x.id === m.replyTo);
               if (replied) {
@@ -153,7 +229,7 @@
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
 
-            // Иконка reply
+            // Иконка reply (скрыта по умолчанию)
             const replyIcon = document.createElement('span');
             replyIcon.classList.add('replyIcon');
             replyIcon.textContent = '⟲';
@@ -163,20 +239,13 @@
               renderReplyPreview(m.text ? m.text : '[файл]');
             };
 
-            // Свайп: touchstart/touchend для показа replyIcon
-            div.addEventListener('touchstart', (e) => {
-              div.dataset.touchStartX = e.changedTouches[0].clientX;
-            });
-            div.addEventListener('touchend', (e) => {
-              const startX = parseFloat(div.dataset.touchStartX || 0);
-              const endX = e.changedTouches[0].clientX;
-              if (endX - startX > 80) {
-                div.classList.add('showReply');
-              } else {
+            // Вместо свайпа — реагируем на double click/double tap
+            div.addEventListener('dblclick', () => {
+              div.classList.add('showReply');
+              setTimeout(() => {
                 div.classList.remove('showReply');
-              }
+              }, 2000);
             });
-
             div.appendChild(replyIcon);
             div.appendChild(bubble);
             div.appendChild(meta);
@@ -233,17 +302,34 @@
         }
       });
 
-      // Отправка файла
-      sendFileBtn.addEventListener('click', () => fileInput.click());
-      fileInput.onchange = async () => {
-        if (!fileInput.files.length) return;
-        const file = fileInput.files[0];
+      // Показать модалку для файла
+      sendFileBtn.addEventListener('click', () => {
+        modalFileInput.value = '';
+        fileCommentInput.value = '';
+        fileModalOverlay.style.display = 'flex';
+      });
+
+      // Отмена загрузки файла
+      cancelFileBtn.addEventListener('click', () => {
+        fileModalOverlay.style.display = 'none';
+      });
+
+      // Отправка файла + комментария
+      sendFileWithCommentBtn.addEventListener('click', async () => {
+        if (!modalFileInput.files.length) {
+          alert('Выберите файл');
+          return;
+        }
+        const file = modalFileInput.files[0];
+        const comment = fileCommentInput.value.trim();
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('chatId', chatId);
         formData.append('from', userId);
         formData.append('to', other);
         if (replyToId) formData.append('replyTo', replyToId);
+        if (comment) formData.append('text', comment);
 
         try {
           await fetch('/api/messages/send-file', {
@@ -252,14 +338,13 @@
           });
           replyToId = null;
           renderReplyPreview(null);
+          fileModalOverlay.style.display = 'none';
           await loadMessages();
         } catch (err) {
           alert('Не удалось отправить файл');
           console.error(err);
-        } finally {
-          fileInput.value = '';
         }
-      };
+      });
     })();
   </script>
 </body>
