@@ -1,6 +1,8 @@
 // server.js
 // ------------------------------
-// Обновлённый Node.js/Express-сервер с поддержкой отправки файлов и reply на сообщения
+// Обновлённый Node.js/Express-сервер с поддержкой:
+// 1) reply по двойному нажатию
+// 2) комментарий к файлу (text в send-file)
 
 const express     = require('express');
 const fs          = require('fs');
@@ -21,9 +23,7 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
 // Настройка multer для загрузки файлов
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
-  },
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + '_' + file.originalname;
     cb(null, uniqueName);
@@ -40,8 +40,9 @@ app.use('/files', express.static(UPLOAD_DIR)); // отдать загружен�
 // --- Инициализация базы (chatDB) ---
 let chatDB = { chats: {}, users: {} };
 if (fs.existsSync(DB_PATH)) {
-  try { chatDB = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
-  catch (e) {
+  try {
+    chatDB = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  } catch (e) {
     console.error('Ошибка при чтении chat-db.json, создаём новый:', e);
     chatDB = { chats: {}, users: {} };
     fs.writeFileSync(DB_PATH, JSON.stringify(chatDB, null, 2));
@@ -125,7 +126,9 @@ app.post('/api/create-chat', (req, res) => {
 // 3) POST /api/messages/send (текст + replyTo)
 app.post('/api/messages/send', (req, res) => {
   const { chatId, from, to, text, replyTo } = req.body;
-  if (!chatId || !from || !to || (!text && !req.body.file)) return res.status(400).json({ error: 'Invalid payload' });
+  if (!chatId || !from || !to || (!text && !('file' in req.body))) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
   const chat = chatDB.chats[chatId];
   if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
@@ -144,10 +147,12 @@ app.post('/api/messages/send', (req, res) => {
   return res.json({ success: true, message: msg });
 });
 
-// 3b) POST /api/messages/send-file (multipart)
+// 3b) POST /api/messages/send-file (multipart + комментарий)
 app.post('/api/messages/send-file', upload.single('file'), (req, res) => {
-  const { chatId, from, to, replyTo } = req.body;
-  if (!chatId || !from || !to || !req.file) return res.status(400).json({ error: 'Invalid payload' });
+  const { chatId, from, to, replyTo, text } = req.body;
+  if (!chatId || !from || !to || !req.file) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
   const chat = chatDB.chats[chatId];
   if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
@@ -156,7 +161,7 @@ app.post('/api/messages/send-file', upload.single('file'), (req, res) => {
     id: Date.now() + '_' + Math.floor(Math.random() * 1000),
     from: String(from),
     to: String(to),
-    text: null,
+    text: text || null,       // Здесь сохраняем комментарий к файлу (или null)
     file: fileUrl,
     ts: Date.now(),
     read: false,
