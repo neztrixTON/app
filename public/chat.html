@@ -136,7 +136,6 @@
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
             div.dataset.id = m.id;
-            div.classList.add('replyable');
 
             // Если есть replyTo → вставляем блок с текстом оригинала
             if (m.replyTo) {
@@ -151,9 +150,14 @@
               }
             }
 
+            // Собственное «пузырёк»
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
-            if (m.text) bubble.textContent = m.text;
+            // Если есть текст (текстовое сообщение, либо комментарий к файлу)
+            if (m.text && !m.file) {
+              bubble.textContent = m.text;
+            }
+            // Если есть файл
             if (m.file) {
               const link = document.createElement('a');
               link.href = m.file;
@@ -161,64 +165,38 @@
               link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
-
-              // Если к файлу есть также комментарий (m.text), добавить его ниже
+              // Комментарий к файлу:
               if (m.text) {
                 const commentDiv = document.createElement('div');
-                commentDiv.classList.add('meta');
-                commentDiv.style.marginTop = '4px';
+                commentDiv.classList.add('fileComment');
                 commentDiv.textContent = m.text;
                 bubble.appendChild(commentDiv);
               }
             }
 
+            // Иконка «ответить» прямо в правом верхнем углу bubble
+            const replyIcon = document.createElement('span');
+            replyIcon.classList.add('replyIcon');
+            replyIcon.textContent = '↩';
+            replyIcon.onclick = (e) => {
+              e.stopPropagation();
+              replyToId = m.id;
+              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
+            };
+            bubble.appendChild(replyIcon);
+
+            div.appendChild(bubble);
+
+            // Время/аватар
             const meta = document.createElement('div');
             meta.classList.add('meta');
             const date = new Date(m.ts);
             const hh = String(date.getHours()).padStart(2, '0');
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
-
-            // Иконка “три точки”
-            const moreIcon = document.createElement('span');
-            moreIcon.classList.add('moreIcon');
-            moreIcon.textContent = '⋮';
-            moreIcon.onclick = (e) => {
-              e.stopPropagation();
-              // Скрыть все другие попапы
-              document.querySelectorAll('.message.showPopup').forEach(el => {
-                el.classList.remove('showPopup');
-              });
-              // Показываем попап у текущего сообщения
-              div.classList.add('showPopup');
-            };
-
-            // Создаём попап «Ответить»
-            const replyPopup = document.createElement('div');
-            replyPopup.classList.add('replyPopup');
-            const replyBtn = document.createElement('button');
-            replyBtn.textContent = 'Ответить';
-            replyBtn.onclick = (e) => {
-              e.stopPropagation();
-              replyToId = m.id;
-              renderReplyPreview(m.text ? m.text : '[файл]');
-              // Закрыть попап
-              div.classList.remove('showPopup');
-            };
-            replyPopup.appendChild(replyBtn);
-
-            div.appendChild(moreIcon);
-            div.appendChild(replyPopup);
-            div.appendChild(bubble);
             div.appendChild(meta);
-            msgContainer.appendChild(div);
 
-            // Скрываем попап при клике вне сообщения
-            document.addEventListener('click', (ev) => {
-              if (!div.contains(ev.target)) {
-                div.classList.remove('showPopup');
-              }
-            });
+            msgContainer.appendChild(div);
           });
 
           // Прокрутка вниз
