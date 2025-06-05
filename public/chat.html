@@ -2,7 +2,10 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta 
+    name="viewport" 
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
+  />
   <title>Чат</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -12,16 +15,38 @@
     <span id="backBtn">&#8592;</span>
     <div>
       <div id="chatTitle">Чат</div>
-      <div id="status" style="color:#888;">офлайн</div>
+      <div id="status">офлайн</div>
     </div>
   </header>
 
+  <!-- Контейнер, где рендерятся все сообщения -->
   <div class="messages" id="messagesContainer"></div>
 
+  <!-- Кнопка «скролл к низу» -->
+  <button id="scrollToBottomBtn">⬇︎</button>
+
+  <!-- Модалка для загрузки файла + комментария -->
+  <div id="fileModalOverlay">
+    <div>
+      <h3>Отправить файл</h3>
+      <input type="file" id="modalFileInput" />
+      <textarea 
+        id="fileComment" 
+        placeholder="Комментарий (необязательно)"
+      ></textarea>
+      <button id="sendFileWithCommentBtn">Отправить</button>
+      <button id="cancelFileBtn" class="cancel">Отмена</button>
+    </div>
+  </div>
+
+  <!-- Фиксированная панель ввода внизу -->
   <div class="input-bar">
-    <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
+    <textarea 
+      id="messageInput" 
+      placeholder="Введите сообщение..." 
+      rows="1"
+    ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
-    <input type="file" id="fileInput" style="display:none;" />
     <button id="sendFileBtn">📎</button>
   </div>
 
@@ -34,23 +59,30 @@
       const user = Telegram.WebApp.initDataUnsafe?.user;
       if (!user || !chatId) {
         document.getElementById('messagesContainer').innerHTML =
-          '<p style="padding:12px;">Неверные параметры.</p>';
+          '<p style="padding:12px; text-align:center;">Неверные параметры.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Определяем “другого” в chatId
+      // Определим «другого» по chatId
       const [u1, u2] = chatId.split('_');
       const other = (u1 === userId ? u2 : u1);
 
-      const chatTitleEl = document.getElementById('chatTitle');
-      const statusEl    = document.getElementById('status');
-      const backBtn     = document.getElementById('backBtn');
-      const msgContainer= document.getElementById('messagesContainer');
-      const inputEl     = document.getElementById('messageInput');
-      const sendBtn     = document.getElementById('sendBtn');
-      const fileInput   = document.getElementById('fileInput');
-      const sendFileBtn = document.getElementById('sendFileBtn');
+      const chatTitleEl       = document.getElementById('chatTitle');
+      const statusEl          = document.getElementById('status');
+      const backBtn           = document.getElementById('backBtn');
+      const msgContainer      = document.getElementById('messagesContainer');
+      const inputEl           = document.getElementById('messageInput');
+      const sendBtn           = document.getElementById('sendBtn');
+      const sendFileBtn       = document.getElementById('sendFileBtn');
+      const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
+
+      // Модалка для файла
+      const fileModalOverlay       = document.getElementById('fileModalOverlay');
+      const modalFileInput         = document.getElementById('modalFileInput');
+      const fileCommentInput       = document.getElementById('fileComment');
+      const sendFileWithCommentBtn = document.getElementById('sendFileWithCommentBtn');
+      const cancelFileBtn          = document.getElementById('cancelFileBtn');
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
@@ -58,14 +90,14 @@
         window.location.href = 'index.html';
       };
 
-      // Обновление статуса каждые 5 сек
+      // --- Обновление статуса собеседника ---
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
           if (!res.ok) throw new Error();
           const data = await res.json();
           statusEl.textContent = data.online ? 'онлайн' : 'офлайн';
-          statusEl.style.color   = data.online ? '#0f0' : '#888';
+          statusEl.style.color   = data.online ? '#7CFC00' : '#888';
         } catch(e) {
           console.error('Не удалось получить статус:', e);
         }
@@ -73,25 +105,30 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // --- Обработка reply ---
+      // --- Reply: id сообщения, на которое отвечаем ---
       let replyToId = null;
+
       function renderReplyPreview(text) {
         const existing = document.getElementById('replyPreview');
         if (existing) existing.remove();
         if (!text) return;
         const div = document.createElement('div');
         div.id = 'replyPreview';
-        div.style.padding = '4px 8px';
-        div.style.backgroundColor = '#222';
-        div.style.borderLeft = '2px solid #555';
-        div.style.margin = '8px 12px';
-        div.style.borderRadius = '4px';
+        div.style.padding = '6px 12px';
+        div.style.backgroundColor = 'rgba(50,50,50,0.7)';
+        div.style.borderLeft = '3px solid #666';
+        div.style.margin = '8px 20px 0 20px';
+        div.style.borderRadius = '8px';
+        div.style.maxWidth = '80%';
+        div.style.whiteSpace = 'nowrap';
+        div.style.overflow = 'hidden';
+        div.style.textOverflow = 'ellipsis';
+        div.style.fontSize = '14px';
         div.textContent = `Ответ на: ${text}`;
-        const inputBar = document.querySelector('.input-bar');
-        document.body.insertBefore(div, inputBar);
+        document.body.insertBefore(div, document.querySelector('.input-bar'));
       }
 
-      // Рендерим сообщения
+      // --- Загрузка и рендер сообщений ---
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -104,9 +141,8 @@
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
-            div.dataset.id = m.id;
 
-            // Reply preview внутри сообщения
+            // Если это ответ (m.replyTo), показываем текст оригинала или “[файл]”
             if (m.replyTo) {
               const replied = msgs.find(x => x.id === m.replyTo);
               if (replied) {
@@ -119,55 +155,62 @@
               }
             }
 
+            // «Пузырёк» с содержимым
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
-            if (m.text) bubble.textContent = m.text;
+
+            // Текстовое сообщение (либо комментарий к файлу)
+            if (m.text && !m.file) {
+              bubble.textContent = m.text;
+            }
+
+            // Если есть файл
             if (m.file) {
               const link = document.createElement('a');
               link.href = m.file;
               link.textContent = '📎 Файл';
-              link.style.color = '#006cff';
+              link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
+              // Комментарий под ссылкой
+              if (m.text) {
+                const commentDiv = document.createElement('div');
+                commentDiv.classList.add('fileComment');
+                commentDiv.textContent = m.text;
+                bubble.appendChild(commentDiv);
+              }
             }
 
+            // Иконка «↩» (reply) в правом верхнем углу bubble
+            const replyIcon = document.createElement('span');
+            replyIcon.classList.add('replyIcon');
+            replyIcon.textContent = '↩';
+            replyIcon.onclick = (e) => {
+              e.stopPropagation();
+              replyToId = m.id;
+              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
+            };
+            bubble.appendChild(replyIcon);
+
+            div.appendChild(bubble);
+
+            // Мета-информация: время и «Вы/Собеседник»
             const meta = document.createElement('div');
             meta.classList.add('meta');
             const date = new Date(m.ts);
             const hh = String(date.getHours()).padStart(2, '0');
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
-
-            // Иконка для свайпа (reply)
-            const replyIcon = document.createElement('span');
-            replyIcon.classList.add('replyIcon');
-            replyIcon.textContent = '⟲';
-            replyIcon.onclick = (e) => {
-              e.stopPropagation();
-              replyToId = m.id;
-              renderReplyPreview(m.text ? m.text : '[файл]');
-            };
-
-            div.addEventListener('touchstart', (e) => {
-              div.dataset.touchStartX = e.changedTouches[0].clientX;
-            });
-            div.addEventListener('touchend', (e) => {
-              const startX = parseFloat(div.dataset.touchStartX || 0);
-              const endX = e.changedTouches[0].clientX;
-              // Если смахнули вправо более чем на 50px → показать replyIcon
-              if (endX - startX > 50) {
-                div.classList.add('showReply');
-              } else {
-                div.classList.remove('showReply');
-              }
-            });
-            div.appendChild(replyIcon);
-            div.appendChild(bubble);
             div.appendChild(meta);
+
             msgContainer.appendChild(div);
           });
 
+          // Авто-скролл вниз
           msgContainer.scrollTop = msgContainer.scrollHeight;
+
+          // Скрываем кнопку «⬇︎», так как мы уже внизу
+          scrollToBottomBtn.style.display = 'none';
         } catch (err) {
           console.error(err);
         }
@@ -176,10 +219,35 @@
       loadMessages();
       setInterval(loadMessages, 1000);
 
-      // Отправка текстового сообщения
+      // --- Обработка скролла в .messages: если не внизу, показываем кнопку ↓ ---
+      msgContainer.addEventListener('scroll', () => {
+        const threshold = 50; // пикселей до низа
+        const distanceFromBottom = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
+        if (distanceFromBottom > threshold) {
+          // если сильно прокручены вверх → показать кнопку
+          scrollToBottomBtn.style.display = 'flex';
+        } else {
+          scrollToBottomBtn.style.display = 'none';
+        }
+      });
+
+      // При клике на кнопку «⬇︎» скроллим в самый низ
+      scrollToBottomBtn.addEventListener('click', () => {
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        scrollToBottomBtn.style.display = 'none';
+      });
+
+      // --- Авто‐расширение textarea по вводу ---
+      function autoResizeTextarea() {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = inputEl.scrollHeight + 'px';
+      }
       inputEl.addEventListener('input', () => {
+        autoResizeTextarea();
         sendBtn.disabled = inputEl.value.trim() === '';
       });
+
+      // --- Отправка текстового сообщения ---
       sendBtn.addEventListener('click', async () => {
         const text = inputEl.value.trim();
         if (!text) return;
@@ -199,6 +267,7 @@
           replyToId = null;
           renderReplyPreview(null);
           inputEl.value = '';
+          autoResizeTextarea();
           await loadMessages();
         } catch (err) {
           alert('Ошибка: ' + err.message);
@@ -208,17 +277,34 @@
         }
       });
 
-      // Отправка файла
-      sendFileBtn.addEventListener('click', () => fileInput.click());
-      fileInput.onchange = async () => {
-        if (!fileInput.files.length) return;
-        const file = fileInput.files[0];
+      // --- Показать модалку для файла ---
+      sendFileBtn.addEventListener('click', () => {
+        modalFileInput.value = '';
+        fileCommentInput.value = '';
+        fileModalOverlay.style.display = 'flex';
+      });
+
+      // --- Отмена загрузки файла ---
+      cancelFileBtn.addEventListener('click', () => {
+        fileModalOverlay.style.display = 'none';
+      });
+
+      // --- Отправка файла + комментария ---
+      sendFileWithCommentBtn.addEventListener('click', async () => {
+        if (!modalFileInput.files.length) {
+          alert('Выберите файл');
+          return;
+        }
+        const file = modalFileInput.files[0];
+        const comment = fileCommentInput.value.trim();
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('chatId', chatId);
         formData.append('from', userId);
         formData.append('to', other);
         if (replyToId) formData.append('replyTo', replyToId);
+        if (comment) formData.append('text', comment);
 
         try {
           await fetch('/api/messages/send-file', {
@@ -227,14 +313,15 @@
           });
           replyToId = null;
           renderReplyPreview(null);
+          fileModalOverlay.style.display = 'none';
           await loadMessages();
         } catch (err) {
           alert('Не удалось отправить файл');
           console.error(err);
         } finally {
-          fileInput.value = '';
+          modalFileInput.value = '';
         }
-      };
+      });
     })();
   </script>
 </body>
