@@ -250,6 +250,7 @@ header #status {
   overflow-wrap: break-word;
 }
 
+/* Цвет пузыря для собственного сообщения */
 .message.me .bubble {
   background-color: #2979ff;
   color: #fff;
@@ -261,29 +262,45 @@ header #status {
   margin-top: 6px;
 }
 
-/* Иконка “три точки” */
-.message .moreIcon {
+/* Иконка «ответить» всегда внутри bubble, в правом верхнем углу */
+.message .replyIcon {
   position: absolute;
-  top: 8px;
-  right: -28px;
-  font-size: 18px;
-  color: #888;
-  display: none;
+  top: 6px;
+  right: 6px;
+  font-size: 16px;
+  color: #bbb;
   cursor: pointer;
-  transition: color 0.2s;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
 }
 
-.message .moreIcon:hover {
-  color: #ddd;
+.message .replyIcon:hover {
+  color: #fff;
+  background-color: rgba(255,255,255,0.1);
 }
 
-/* При наведении (desktop) или при тапе (mobile) показывать ⋮ */
-.message.replyable:hover .moreIcon,
-.message.replyable.showMore .moreIcon {
-  display: block;
+/* Если к файлу есть комментарий (m.text при m.file), оформляем его ниже ссылки */
+.message .fileLink {
+  display: flex;
+  align-items: center;
+  color: #80cfff;
+  text-decoration: none;
+  font-size: 15px;
+  margin-top: 4px;
 }
 
-/* Блок “ответ на сообщение” внутри bubble */
+.message .fileLink:hover {
+  text-decoration: underline;
+}
+
+.message .fileComment {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #ccc;
+}
+
+/* Блок «ответ на сообщение» */
 .message .replyTo {
   font-size: 13px;
   color: #ccc;
@@ -298,53 +315,7 @@ header #status {
   text-overflow: ellipsis;
 }
 
-/* Ссылка на файл */
-.message .fileLink {
-  display: flex;
-  align-items: center;
-  color: #80cfff;
-  text-decoration: none;
-  font-size: 15px;
-  margin-top: 4px;
-}
-
-.message .fileLink:hover {
-  text-decoration: underline;
-}
-
-/* Попап “Ответить” */
-.message .replyPopup {
-  position: absolute;
-  top: -40px; /* над пузырём */
-  right: 0;
-  background-color: #2a2a2a;
-  border-radius: 8px;
-  padding: 6px 10px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-  display: none;
-  z-index: 5;
-}
-
-.message.showPopup .replyPopup {
-  display: block;
-}
-
-.message .replyPopup button {
-  background: none;
-  border: none;
-  color: #88cfff;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: background-color 0.2s;
-  border-radius: 4px;
-}
-
-.message .replyPopup button:hover {
-  background-color: rgba(255,255,255,0.1);
-}
-
-/* --- Модалка для файла + комментария --- */
+/* Попап для загрузки файла + комментария */
 #fileModalOverlay {
   position: fixed;
   top: 0;
@@ -456,38 +427,37 @@ header #status {
   color: #888;
 }
 
-.input-bar button {
-  margin-left: 8px;
+#sendBtn {
+  background-color: #2979ff;
   border: none;
   border-radius: 20px;
   color: #fff;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
+  padding: 10px 16px;
+  margin-left: 8px;
   transition: background-color 0.2s;
 }
 
-.input-bar button:disabled {
+#sendBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-#sendBtn {
-  background-color: #2979ff;
-  padding: 10px 16px;
 }
 
 #sendBtn:hover:enabled {
   background-color: #5393ff;
 }
 
-/* Стиль кнопки выбора файла */
+/* Кнопка для вызова модалки файла */
 #sendFileBtn {
   background-color: #444;
   font-size: 18px;
   padding: 10px;
   margin-left: 8px;
+  border: none;
   border-radius: 50%;
+  cursor: pointer;
   transition: background-color 0.2s, transform 0.1s;
 }
 
@@ -528,9 +498,8 @@ header #status {
   .messages { padding: 12px 16px; padding-bottom: 120px; }
   .message .bubble { font-size: 14px; }
   .message .meta { font-size: 10px; }
-  .message .moreIcon { right: -24px; font-size: 16px; top: 6px; }
-  .input-bar { padding: 8px 12px; }
-  .input-bar textarea { font-size: 14px; }
+  .message .replyIcon { top: 4px; right: 4px; font-size: 14px; }
   #sendBtn { font-size: 14px; padding: 8px 12px; }
   #sendFileBtn { font-size: 16px; padding: 8px; }
+  .input-bar textarea { font-size: 14px; }
 }
