@@ -2,10 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta 
-    name="viewport" 
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Чаты</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -15,24 +12,16 @@
     <div id="chatTitle">Чаты</div>
   </header>
 
-  <div class="chat-list" id="chatList">
-    <!-- JS подгружает сюда список чатов -->
-  </div>
+  <div class="chat-list" id="chatList"></div>
 
-  <!-- Кнопка “➕ Новый чат” -->
   <button id="newChatBtn">＋</button>
 
-  <!-- Модальное окно “Новый чат” -->
   <div id="modalOverlay">
     <div id="modal">
       <h3>Новый чат</h3>
-      <input 
-        type="text" 
-        id="newUserId" 
-        placeholder="Введите ID пользователя" 
-      />
-      <button id="createChatBtn">Создать чат</button>
-      <button id="closeModalBtn" class="cancel">Отмена</button>
+      <input type="text" id="newUserId" placeholder="Введите ID пользователя" />
+      <button id="createChatBtn">Создать</button>
+      <button id="closeModalBtn">Отмена</button>
     </div>
   </div>
 
@@ -44,7 +33,7 @@
       const user = initData.user;
       if (!user) {
         document.getElementById('chatList').innerHTML =
-          '<p style="padding:12px; text-align:center;">Не удалось получить ID.</p>';
+          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
         return;
       }
       const userId = String(user.id);
@@ -56,7 +45,6 @@
       const createChatBtn= document.getElementById('createChatBtn');
       const newUserInput = document.getElementById('newUserId');
 
-      // Загрузить список чатов
       async function loadChats() {
         try {
           const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
@@ -64,7 +52,7 @@
           const chats = await res.json();
           chatListEl.innerHTML = '';
           if (chats.length === 0) {
-            chatListEl.innerHTML = '<p style="padding:12px; text-align:center;">Чатов нет.</p>';
+            chatListEl.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
             return;
           }
           chats.forEach(chat => {
@@ -72,7 +60,7 @@
             div.className = 'chat-item';
             div.onclick = () => openChat(chat.chatId);
 
-            const onlineColor = chat.online ? '#7CFC00' : '#888';
+            const onlineColor = chat.online ? '#0f0' : '#888';
             const statusText  = chat.online ? 'онлайн' : 'офлайн';
             const unreadHTML  = chat.unreadCount > 0
               ? `<span class="unread">${chat.unreadCount}</span>`
@@ -91,26 +79,22 @@
             chatListEl.appendChild(div);
           });
         } catch (err) {
-          chatListEl.innerHTML = `<p style="padding:12px; text-align:center;">Ошибка: ${err.message}</p>`;
+          chatListEl.innerHTML = `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
         }
       }
 
-      // Открытие конкретного чата
       function openChat(chatId) {
         window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
       }
 
-      // Показать модалку
       newBtn.onclick = () => {
         newUserInput.value = '';
         modalOverlay.style.display = 'flex';
       };
-      // Скрыть модалку
       closeModal.onclick = () => {
         modalOverlay.style.display = 'none';
       };
 
-      // Создать новый чат
       createChatBtn.onclick = async () => {
         const toId = newUserInput.value.trim();
         if (!toId) {
@@ -136,7 +120,6 @@
         }
       };
 
-      // Первая загрузка + обновление каждые 5 сек
       loadChats();
       setInterval(loadChats, 5000);
     })();
