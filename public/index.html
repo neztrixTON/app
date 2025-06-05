@@ -2,7 +2,6 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <!-- Задаём viewport с отключением зума, чтобы плашки всегда оставались на месте -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Чаты</title>
   <link rel="stylesheet" href="css/style.css" />
@@ -13,14 +12,10 @@
     <div id="chatTitle">Чаты</div>
   </header>
 
-  <div class="chat-list" id="chatList">
-    <!-- Здесь JS заполнит список чатов -->
-  </div>
+  <div class="chat-list" id="chatList"></div>
 
-  <!-- Кнопка “➕ Новый чат” -->
   <button id="newChatBtn">＋</button>
 
-  <!-- Модальное окно “Новый чат” -->
   <div id="modalOverlay">
     <div id="modal">
       <h3>Новый чат</h3>
@@ -50,7 +45,6 @@
       const createChatBtn= document.getElementById('createChatBtn');
       const newUserInput = document.getElementById('newUserId');
 
-      // Функция для загрузки списка чатов
       async function loadChats() {
         try {
           const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
@@ -65,11 +59,13 @@
             const div = document.createElement('div');
             div.className = 'chat-item';
             div.onclick = () => openChat(chat.chatId);
+
             const onlineColor = chat.online ? '#0f0' : '#888';
             const statusText  = chat.online ? 'онлайн' : 'офлайн';
             const unreadHTML  = chat.unreadCount > 0
               ? `<span class="unread">${chat.unreadCount}</span>`
               : '';
+
             div.innerHTML = `
               <div class="avatar"></div>
               <div class="info">
@@ -87,13 +83,10 @@
         }
       }
 
-      // Открыть конкретный чат
       function openChat(chatId) {
-        // Переходим к chat.html, Telegram WebApp откроет его
         window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
       }
 
-      // Показать/скрыть модалку
       newBtn.onclick = () => {
         newUserInput.value = '';
         modalOverlay.style.display = 'flex';
@@ -102,7 +95,6 @@
         modalOverlay.style.display = 'none';
       };
 
-      // Создать новый чат
       createChatBtn.onclick = async () => {
         const toId = newUserInput.value.trim();
         if (!toId) {
@@ -128,7 +120,6 @@
         }
       };
 
-      // Изначальная загрузка + повтор каждые 5 сек
       loadChats();
       setInterval(loadChats, 5000);
     })();
