@@ -16,13 +16,13 @@
     </div>
   </header>
 
-  <div class="messages" id="messagesContainer">
-    <!-- Здесь появятся сообщения -->
-  </div>
+  <div class="messages" id="messagesContainer"></div>
 
   <div class="input-bar">
     <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
     <button id="sendBtn" disabled>Отправить</button>
+    <input type="file" id="fileInput" style="display:none;" />
+    <button id="sendFileBtn">📎</button>
   </div>
 
   <script>
@@ -49,15 +49,16 @@
       const msgContainer= document.getElementById('messagesContainer');
       const inputEl     = document.getElementById('messageInput');
       const sendBtn     = document.getElementById('sendBtn');
+      const fileInput   = document.getElementById('fileInput');
+      const sendFileBtn = document.getElementById('sendFileBtn');
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
-      // Кнопка “назад”
       backBtn.onclick = () => {
         window.location.href = 'index.html';
       };
 
-      // Обновление статуса собеседника раз в 5 сек
+      // Обновление статуса каждые 5 сек
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
@@ -72,7 +73,25 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // Загрузка и рендер сообщений
+      // --- Обработка reply ---
+      let replyToId = null;
+      function renderReplyPreview(text) {
+        const existing = document.getElementById('replyPreview');
+        if (existing) existing.remove();
+        if (!text) return;
+        const div = document.createElement('div');
+        div.id = 'replyPreview';
+        div.style.padding = '4px 8px';
+        div.style.backgroundColor = '#222';
+        div.style.borderLeft = '2px solid #555';
+        div.style.margin = '8px 12px';
+        div.style.borderRadius = '4px';
+        div.textContent = `Ответ на: ${text}`;
+        const inputBar = document.querySelector('.input-bar');
+        document.body.insertBefore(div, inputBar);
+      }
+
+      // Рендерим сообщения
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -85,10 +104,32 @@
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
+            div.dataset.id = m.id;
+
+            // Reply preview внутри сообщения
+            if (m.replyTo) {
+              const replied = msgs.find(x => x.id === m.replyTo);
+              if (replied) {
+                const replyDiv = document.createElement('div');
+                replyDiv.classList.add('replyTo');
+                replyDiv.textContent = replied.text
+                  ? replied.text
+                  : '[файл]';
+                div.appendChild(replyDiv);
+              }
+            }
 
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
-            bubble.textContent = m.text;
+            if (m.text) bubble.textContent = m.text;
+            if (m.file) {
+              const link = document.createElement('a');
+              link.href = m.file;
+              link.textContent = '📎 Файл';
+              link.style.color = '#006cff';
+              link.target = '_blank';
+              bubble.appendChild(link);
+            }
 
             const meta = document.createElement('div');
             meta.classList.add('meta');
@@ -97,43 +138,66 @@
             const mm = String(date.getMinutes()).padStart(2, '0');
             meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
 
+            // Иконка для свайпа (reply)
+            const replyIcon = document.createElement('span');
+            replyIcon.classList.add('replyIcon');
+            replyIcon.textContent = '⟲';
+            replyIcon.onclick = (e) => {
+              e.stopPropagation();
+              replyToId = m.id;
+              renderReplyPreview(m.text ? m.text : '[файл]');
+            };
+
+            div.addEventListener('touchstart', (e) => {
+              div.dataset.touchStartX = e.changedTouches[0].clientX;
+            });
+            div.addEventListener('touchend', (e) => {
+              const startX = parseFloat(div.dataset.touchStartX || 0);
+              const endX = e.changedTouches[0].clientX;
+              // Если смахнули вправо более чем на 50px → показать replyIcon
+              if (endX - startX > 50) {
+                div.classList.add('showReply');
+              } else {
+                div.classList.remove('showReply');
+              }
+            });
+            div.appendChild(replyIcon);
             div.appendChild(bubble);
             div.appendChild(meta);
             msgContainer.appendChild(div);
           });
 
-          // Прокрутка вниз
           msgContainer.scrollTop = msgContainer.scrollHeight;
         } catch (err) {
           console.error(err);
         }
       }
 
-      // Обновляем каждые 1 сек
       loadMessages();
       setInterval(loadMessages, 1000);
 
-      // Отправка сообщения
+      // Отправка текстового сообщения
       inputEl.addEventListener('input', () => {
         sendBtn.disabled = inputEl.value.trim() === '';
       });
-
       sendBtn.addEventListener('click', async () => {
         const text = inputEl.value.trim();
         if (!text) return;
         sendBtn.disabled = true;
         try {
-          const res = await fetch('/api/messages/send', {
+          await fetch('/api/messages/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chatId,
               from: userId,
               to: other,
-              text
+              text,
+              replyTo: replyToId
             })
           });
-          if (!res.ok) throw new Error('Не удалось отправить сообщение');
+          replyToId = null;
+          renderReplyPreview(null);
           inputEl.value = '';
           await loadMessages();
         } catch (err) {
@@ -143,6 +207,34 @@
           sendBtn.disabled = inputEl.value.trim() === '';
         }
       });
+
+      // Отправка файла
+      sendFileBtn.addEventListener('click', () => fileInput.click());
+      fileInput.onchange = async () => {
+        if (!fileInput.files.length) return;
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chatId', chatId);
+        formData.append('from', userId);
+        formData.append('to', other);
+        if (replyToId) formData.append('replyTo', replyToId);
+
+        try {
+          await fetch('/api/messages/send-file', {
+            method: 'POST',
+            body: formData
+          });
+          replyToId = null;
+          renderReplyPreview(null);
+          await loadMessages();
+        } catch (err) {
+          alert('Не удалось отправить файл');
+          console.error(err);
+        } finally {
+          fileInput.value = '';
+        }
+      };
     })();
   </script>
 </body>
