@@ -213,13 +213,18 @@ header #status {
   background-color: #555;
 }
 
+
 /* --- Страница чата (chat.html) --- */
+/* .messages теперь занимает всё доступное место между header и .input-bar */
 .messages {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
   padding: 16px 20px;
-  padding-bottom: 140px; /* отступ для панели ввода */
+  /* оставляем нижний паддинг, чтобы последнее сообщение не «склеивалось» с input-bar */
+  padding-bottom: 140px;
 }
+
+/* Оставшиеся правила для сообщений, reply, кнопок и т. д. без изменений */
 
 .message {
   margin-bottom: 16px;
@@ -250,7 +255,6 @@ header #status {
   overflow-wrap: break-word;
 }
 
-/* Цвет пузыря для собственного сообщения */
 .message.me .bubble {
   background-color: #2979ff;
   color: #fff;
@@ -262,7 +266,7 @@ header #status {
   margin-top: 6px;
 }
 
-/* Иконка «ответить» всегда внутри bubble, в правом верхнем углу */
+/* Иконка «ответить» внутри bubble */
 .message .replyIcon {
   position: absolute;
   top: 6px;
@@ -280,7 +284,6 @@ header #status {
   background-color: rgba(255,255,255,0.1);
 }
 
-/* Если к файлу есть комментарий (m.text при m.file), оформляем его ниже ссылки */
 .message .fileLink {
   display: flex;
   align-items: center;
@@ -300,7 +303,6 @@ header #status {
   color: #ccc;
 }
 
-/* Блок «ответ на сообщение» */
 .message .replyTo {
   font-size: 13px;
   color: #ccc;
@@ -449,7 +451,6 @@ header #status {
   background-color: #5393ff;
 }
 
-/* Кнопка для вызова модалки файла */
 #sendFileBtn {
   background-color: #444;
   font-size: 18px;
