@@ -1,57 +1,56 @@
 // server.js
-// ------------------------------
-// Обновлённый Node.js/Express-сервер с поддержкой:
-// 1) метаданных chat.meta (requestId, type, address, createdAt)
-// 2) участников с ролями (participants: [{id,role},…])
-// 3) эндпоинта POST /api/add-to-chat
+// ===========================
+// Node.js/Express + Bot‑token integration
+// 1) хранит participants с ролями и meta (requestId, …)
+// 2) при POST /api/messages/send(-file) шлёт через Telegram API
+//    уведомление всем, кроме отправителя.
+// 3) отдаёт isAdmin для WebApp, чтобы показывать кнопку «Добавить участника».
+// ===========================
 
-const express     = require('express');
-const fs          = require('fs');
-const path        = require('path');
-const bodyParser  = require('body-parser');
-const cors        = require('cors');
-const multer      = require('multer');
+const express    = require('express');
+const fs         = require('fs');
+const path       = require('path');
+const bodyParser = require('body-parser');
+const cors       = require('cors');
+const multer     = require('multer');
+const fetch      = require('node-fetch'); // npm i node-fetch@2
+require('dotenv').config();
 
-const app  = express();
-const PORT = parseInt(process.env.PORT) || 3000;
-
-// Путь к файлу “БД”
+const app        = express();
+const PORT       = parseInt(process.env.PORT) || 3000;
 const DB_PATH    = path.join(__dirname, 'chat-db.json');
-// Папка для хранения загруженных файлов
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
-// Подключаем middleware
+// Telegram Bot API
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const TG_API    = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/files', express.static(UPLOAD_DIR)); // отдать загруженные файлы
+app.use('/files', express.static(UPLOAD_DIR));
 
-// Multer для загрузки файлов
+// Multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename:    (req, file, cb) => cb(null, Date.now() + '_' + file.originalname)
 });
 const upload = multer({ storage });
 
-// Инициализация БД
-let chatDB = { chats: {}, users: {} };
+// Simple JSON «DB»
+let chatDB = { chats: {}, users: {}, admins: [] };
 if (fs.existsSync(DB_PATH)) {
-  try {
-    chatDB = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch (e) {
-    console.error('Ошибка при чтении chat-db.json, создаём новый:', e);
-    saveDB();
-  }
-} else {
-  saveDB();
-}
+  try { chatDB = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
+  catch (e) { console.error(e); saveDB(); }
+} else saveDB();
 
 function saveDB() {
   fs.writeFileSync(DB_PATH, JSON.stringify(chatDB, null, 2));
 }
 
-// Онлайн‑статус
+// Mark user online
 function markOnline(userId) {
   chatDB.users[userId] = Date.now();
   saveDB();
@@ -61,134 +60,163 @@ function isOnline(userId) {
   return last && (Date.now() - last) < 30000;
 }
 
-// API
+// Helpers
+async function notifyParticipant(to, text, chatId) {
+  const url = `${TG_API}/sendMessage`;
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      chat_id: to,
+      text,
+      reply_markup: {
+        inline_keyboard: [[
+          { text: 'Открыть чат', web_app: { url: `${process.env.WEBAPP_URL}/chat.html?chatId=${chatId}` } }
+        ]]
+      }
+    })
+  });
+}
 
-// 1) GET /api/chats?userId=xxx
+// --- API ---
+
+// GET /api/chats?userId=...
+// Возвращает список чатов + meta + isAdmin
 app.get('/api/chats', (req, res) => {
-  const userId = String(req.query.userId || '');
-  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  const userId = String(req.query.userId||'');
+  if (!userId) return res.status(400).json({error:'Missing userId'});
   markOnline(userId);
 
+  const isAdmin = chatDB.admins.includes(userId);
   const result = [];
   for (const [chatId, chat] of Object.entries(chatDB.chats)) {
-    const partIds = chat.participants.map(p => p.id);
+    const partIds = chat.participants.map(p=>p.id);
     if (!partIds.includes(userId)) continue;
-    // остальные участники
-    const others = chat.participants.filter(p => p.id !== userId);
-    const unreadCount = chat.messages.reduce((cnt, m) => {
-      if (m.to === userId && !m.read) return cnt + 1;
-      return cnt;
-    }, 0);
+    const other = chat.participants.find(p=>p.id!==userId) || {};
+    const unread = chat.messages.filter(m=>m.to===userId && !m.read).length;
     const lastMsg = chat.messages.slice(-1)[0] || {};
     result.push({
       chatId,
-      title: `Чат по заявке #${chat.meta?.requestId || '?'}`,
-      online: others.some(o => isOnline(o.id)),
-      unreadCount,
+      title: `Чат по заявке #${chat.meta.requestId}`,
+      online: partIds.filter(id=>id!==userId).some(isOnline),
+      unreadCount: unread,
       lastMessage: lastMsg.text || '[файл]',
-      meta: chat.meta || {}
+      meta: chat.meta,
+      isAdmin
     });
   }
   res.json(result);
 });
 
-// 2) POST /api/create-chat { from, to, meta, role }
-app.post('/api/create-chat', (req, res) => {
-  const { from, to, meta = {}, role = 'manager' } = req.body;
-  if (!from || !to) return res.status(400).json({ error: 'Invalid participants' });
+// POST /api/create-chat {from,to,meta,role}
+app.post('/api/create-chat', (req,res)=>{
+  const {from,to,meta={},role='manager'} = req.body;
+  if(!from||!to) return res.status(400).json({error:'Invalid'});
   const chatId = String(to);
-  if (!chatDB.chats[chatId]) {
+  if(!chatDB.chats[chatId]) {
     chatDB.chats[chatId] = {
       participants: [
-        { id: String(from), role },
-        { id: String(to),   role: 'client' }
+        {id:String(from),role},
+        {id:String(to),role:'client'}
       ],
       messages: [],
       meta
     };
     saveDB();
   }
-  res.json({ chatId });
-});
-
-// 3) POST /api/add-to-chat { chatId, userId, role }
-app.post('/api/add-to-chat', (req, res) => {
-  const { chatId, userId, role } = req.body;
-  const chat = chatDB.chats[chatId];
-  if (!chat) return res.status(404).json({ error: 'Chat not found' });
-  if (!chat.participants.find(p => p.id === String(userId))) {
-    chat.participants.push({ id: String(userId), role });
+  // записываем админа, если новый менеджер
+  if(role !== 'client' && !chatDB.admins.includes(String(from))) {
+    chatDB.admins.push(String(from));
     saveDB();
   }
-  res.json({ success: true });
+  res.json({chatId});
 });
 
-// 4) POST /api/messages/send (текст + replyTo)
-app.post('/api/messages/send', (req, res) => {
-  const { chatId, from, to, text, replyTo } = req.body;
+// POST /api/add-to-chat {chatId,userId,role}
+app.post('/api/add-to-chat',(req,res)=>{
+  const {chatId,userId,role} = req.body;
   const chat = chatDB.chats[chatId];
-  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  if(!chat) return res.status(404).json({error:'Chat not found'});
+  if(!chat.participants.find(p=>p.id===String(userId))){
+    chat.participants.push({id:String(userId),role});
+    saveDB();
+  }
+  // если новый админ/менеджер — регистрируем его
+  if(['manager','master','consultant'].includes(role.toLowerCase())){
+    if(!chatDB.admins.includes(String(userId))){
+      chatDB.admins.push(String(userId));
+      saveDB();
+    }
+  }
+  res.json({success:true});
+});
+
+// POST /api/messages/send
+app.post('/api/messages/send', async (req,res)=>{
+  const {chatId,from,to,text,replyTo} = req.body;
+  const chat = chatDB.chats[chatId];
+  if(!chat) return res.status(404).json({error:'Not found'});
   const msg = {
-    id: Date.now() + '_' + Math.floor(Math.random() * 1000),
-    from: String(from),
-    to: String(to),
-    text: text || null,
-    file: null,
-    ts: Date.now(),
-    read: false,
-    replyTo: replyTo || null
+    id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    from:String(from),to:String(to),text:text||null,
+    file:null, ts:Date.now(), read:false, replyTo:replyTo||null
   };
   chat.messages.push(msg);
   saveDB();
-  res.json({ success: true, message: msg });
+  // notify others
+  for(const p of chat.participants){
+    if(p.id===String(from)) continue;
+    const role = p.role.charAt(0).toUpperCase()+p.role.slice(1);
+    await notifyParticipant(p.id, `📩 Новое сообщение от ${role}:\n\n${text}`, chatId);
+  }
+  res.json({success:true,message:msg});
 });
 
-// 5) POST /api/messages/send-file (multipart + комментарий)
-app.post('/api/messages/send-file', upload.single('file'), (req, res) => {
-  const { chatId, from, to, replyTo, text } = req.body;
+// POST /api/messages/send-file
+app.post('/api/messages/send-file', upload.single('file'), async (req,res)=>{
+  const {chatId,from,to,replyTo,text} = req.body;
   const chat = chatDB.chats[chatId];
-  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  if(!chat) return res.status(404).json({error:'Not found'});
   const fileUrl = `/files/${req.file.filename}`;
   const msg = {
-    id: Date.now() + '_' + Math.floor(Math.random() * 1000),
-    from: String(from),
-    to: String(to),
-    text: text || null,
-    file: fileUrl,
-    ts: Date.now(),
-    read: false,
-    replyTo: replyTo || null
+    id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    from:String(from),to:String(to),text:text||null,
+    file:fileUrl, ts:Date.now(), read:false, replyTo:replyTo||null
   };
   chat.messages.push(msg);
   saveDB();
-  res.json({ success: true, message: msg });
+  // notify others
+  for(const p of chat.participants){
+    if(p.id===String(from)) continue;
+    const role = p.role.charAt(0).toUpperCase()+p.role.slice(1);
+    await notifyParticipant(p.id, `📩 Новое сообщение от ${role}:\n\n${text||'[файл]'}`, chatId);
+  }
+  res.json({success:true,message:msg});
 });
 
-// 6) GET /api/messages?chatId=xxx&userId=yyy
-app.get('/api/messages', (req, res) => {
-  const chatId = String(req.query.chatId || '');
-  const userId = String(req.query.userId || '');
-  if (!chatId || !userId) return res.status(400).json({ error: 'Missing chatId or userId' });
+// GET /api/messages?chatId=...&userId=...
+app.get('/api/messages',(req,res)=>{
+  const chatId=String(req.query.chatId||''),userId=String(req.query.userId||'');
+  if(!chatId||!userId) return res.status(400).json({error:'Missing'});
   const chat = chatDB.chats[chatId];
-  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  if(!chat) return res.status(404).json({error:'Not found'});
   markOnline(userId);
-  chat.messages.forEach(m => { if (m.to === userId) m.read = true; });
+  // mark read
+  chat.messages.forEach(m=>{ if(m.to===userId) m.read=true; });
   saveDB();
-  res.json(chat.messages);
+  res.json({ messages: chat.messages, meta: chat.meta });
 });
 
-// 7) GET /api/status?userId=xxx
-app.get('/api/status', (req, res) => {
-  const userId = String(req.query.userId || '');
-  if (!userId) return res.status(400).json({ error: 'Missing userId' });
-  res.json({ online: isOnline(userId) });
+// GET /api/status?userId=...
+app.get('/api/status',(req,res)=>{
+  const userId=String(req.query.userId||'');
+  if(!userId) return res.status(400).json({error:'Missing'});
+  res.json({online:isOnline(userId)});
 });
 
-// Любые другие запросы → public/index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
+// catch-all → index.html
+app.get('*',(req,res)=>{
+  res.sendFile(path.join(__dirname,'public/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Mini App Server listening on port ${PORT}`);
-});
+app.listen(PORT,()=>console.log(`Server started on ${PORT}`));
