@@ -27,43 +27,47 @@ html, body {
    Стили для главной страницы
    (index.html — список чатов)
    =========================== */
+
+/* Список чатов */
 .chat-list {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 16px;
+  padding-bottom: 100px; /* место для кнопки «＋» */
 }
+
+/* Элемент списка чата */
 .chat-item {
   display: flex;
   align-items: center;
-  background-color: #1e1e1e;
-  margin-bottom: 12px;
   padding: 14px 20px;
-  border-radius: 8px;
+  border-bottom: 1px solid #2a2a2a;
+  cursor: pointer;
   transition: background-color 0.15s;
 }
 .chat-item:hover {
-  background-color: #2a2a2a;
+  background-color: #1f1f1f;
 }
-.chat-item__avatar {
+
+/* Аватарка в списке чатов */
+.chat-item .avatar {
   width: 44px;
   height: 44px;
   background-color: #444;
   border-radius: 50%;
   margin-right: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
   flex-shrink: 0;
 }
-.chat-item__body {
+
+/* Инфо (название, статус) */
+.chat-item .info {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.chat-item__title {
+
+/* Название чата (обычно — ID собеседника) */
+.chat-item .info .title {
   font-size: 16px;
   font-weight: 500;
   color: #e0e0e0;
@@ -71,67 +75,151 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.chat-item__meta {
+
+/* Статус (онлайн/офлайн) и непрочитанные */
+.chat-item .info .subtitle {
   font-size: 12px;
   color: #aaa;
   display: flex;
   align-items: center;
   margin-top: 4px;
 }
-.chat-item__meta .role {
+.chat-item .info .subtitle .status {
   margin-right: 8px;
+  white-space: nowrap;
 }
-.chat-item__meta .unread {
+.chat-item .info .subtitle .unread {
   background-color: #e53935;
   color: #fff;
   border-radius: 10px;
   padding: 2px 6px;
   font-size: 10px;
   margin-left: auto;
+  flex-shrink: 0;
 }
-.chat-item__actions {
-  display: flex;
-  align-items: center;
-  margin-left: 12px;
-}
-.chat-item__actions .btn {
+
+/* Кнопка «＋ Новый чат» */
+#newChatBtn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 58px;
+  height: 58px;
   background-color: #2979ff;
   border: none;
+  border-radius: 50%;
   color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
+  font-size: 34px;
+  line-height: 58px;
+  text-align: center;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-  margin-left: 6px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  transition: background-color 0.2s, transform 0.1s;
 }
-.chat-item__actions .btn:hover {
+#newChatBtn:hover {
+  background-color: #5393ff;
+  transform: translateY(-2px);
+}
+#newChatBtn:active {
+  transform: translateY(0);
+}
+
+/* Модалка «Новый чат» */
+#modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.85);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+}
+#modal {
+  background-color: #1e1e1e;
+  padding: 24px 28px;
+  border-radius: 12px;
+  width: 88%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+}
+#modal h3 {
+  margin-bottom: 16px;
+  font-size: 20px;
+  color: #f0f0f0;
+}
+#modal input {
+  width: 100%;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: none;
+  border-radius: 8px;
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+  font-size: 14px;
+}
+#modal input::placeholder {
+  color: #888;
+}
+#modal button {
+  width: 100%;
+  padding: 12px 0;
+  margin-top: 8px;
+  background-color: #2979ff;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+#modal button:hover {
   background-color: #5393ff;
 }
+#modal button.cancel {
+  background-color: #444;
+}
+#modal button.cancel:hover {
+  background-color: #555;
+}
+
 
 /* ===========================
    Стили для страницы чата
    (chat.html — переписка)
    =========================== */
+
+/* Контейнер .messages занимает всё доступное пространство */
 .messages {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 16px 20px;
+  /* Оставляем запас снизу, чтобы последнее сообщение не «склеилось» с input-bar */
   padding-bottom: 160px;
   position: relative;
 }
+
+/* Отдельное сообщение */
 .message {
   margin-bottom: 16px;
   display: flex;
   flex-direction: column;
   position: relative;
 }
+/* Выравнивание собственных («me») и чужих («you») */
 .message.me {
   align-items: flex-end;
 }
 .message.you {
   align-items: flex-start;
 }
+
+/* Пузырёк сообщения */
 .message .bubble {
   position: relative;
   max-width: 75%;
@@ -142,18 +230,23 @@ html, body {
   font-size: 15px;
   line-height: 1.4;
   word-wrap: break-word;
-  white-space: pre-wrap;
+  white-space: pre-wrap;      /* Поддержка многострочности */
   overflow-wrap: break-word;
 }
+/* Цвет для собственного сообщения */
 .message.me .bubble {
   background-color: #2979ff;
   color: #fff;
 }
+
+/* Мета-информация (время, «Вы/Собеседник») */
 .message .meta {
   font-size: 11px;
   color: #888;
   margin-top: 6px;
 }
+
+/* Иконка «↩» (reply) внутри bubble, в правом верхнем уголке */
 .message .replyIcon {
   position: absolute;
   top: 6px;
@@ -169,6 +262,8 @@ html, body {
   color: #fff;
   background-color: rgba(255,255,255,0.1);
 }
+
+/* Ссылка на файл */
 .message .fileLink {
   display: flex;
   align-items: center;
@@ -180,11 +275,15 @@ html, body {
 .message .fileLink:hover {
   text-decoration: underline;
 }
+
+/* Комментарий к файлу под ссылкой */
 .message .fileComment {
   margin-top: 4px;
   font-size: 13px;
   color: #ccc;
 }
+
+/* Блок «ответ на сообщение» */
 .message .replyTo {
   font-size: 13px;
   color: #ccc;
@@ -198,10 +297,12 @@ html, body {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* Кнопка «⬇︎» — прокрутка к последнему сообщению */
 #scrollToBottomBtn {
   position: fixed;
   right: 24px;
-  bottom: 110px;
+  bottom: 110px; /* чуть выше input-bar */
   width: 40px;
   height: 40px;
   background-color: #2979ff;
@@ -211,7 +312,7 @@ html, body {
   font-size: 20px;
   cursor: pointer;
   box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-  display: none;
+  display: none;       /* Скрыта по умолчанию */
   align-items: center;
   justify-content: center;
   z-index: 10;
@@ -224,6 +325,8 @@ html, body {
 #scrollToBottomBtn:active {
   transform: translateY(0);
 }
+
+/* Модалка «Отправить файл + комментарий» */
 #fileModalOverlay {
   position: fixed;
   top: 0;
@@ -293,6 +396,8 @@ html, body {
 #cancelFileBtn:hover {
   background-color: #555;
 }
+
+/* Фиксированная панель ввода внизу */
 .input-bar {
   position: fixed;
   bottom: 0;
@@ -303,6 +408,7 @@ html, body {
   padding: 10px 16px;
   background-color: #1a1a1a;
   border-top: 1px solid #333;
+  flex: 0 0 auto; /* не даём ей расти */
 }
 .input-bar textarea {
   flex: 1;
@@ -356,6 +462,12 @@ html, body {
 #sendFileBtn:active {
   transform: translateY(0);
 }
+
+/* Многострочный ввод → auto-resize textarea */
+.input-bar textarea {
+  min-height: 36px;
+}
+
 /* Адаптация под узкие экраны */
 @media (max-width: 480px) {
   header { padding: 12px; }
