@@ -75,7 +75,7 @@
       }
       const userId = String(user.id);
 
-      // DOM элементы
+      // DOM elements
       const backBtn = document.getElementById('backBtn');
       const chatTitleEl = document.getElementById('chatTitle');
       const statusEl = document.getElementById('status');
@@ -96,7 +96,9 @@
       const sendBtn = document.getElementById('sendBtn');
       const sendFileBtn = document.getElementById('sendFileBtn');
 
-      let meta = { participants: [] }, replyToId = null;
+      let meta = { participants: [] };
+      let replyToId = null;
+      let lastMsgCount = 0;  // для уведомлений
 
       backBtn.onclick = () => location.href = 'index.html';
       detailsBtn.onclick = () => {
@@ -151,13 +153,19 @@
           const res = await fetch(`/api/messages?chatId=${chatId}&userId=${userId}`);
           const body = await res.json();
           const msgs = body.messages;
-          meta = body.meta || { participants: [] };
+          meta = body.meta || { participants: [], isAdmin: false };
 
-          // Участники и другие переменные
+          // подпись «Вы/Менеджер/Клиент/роль» + уведомление
           const parts = Array.isArray(meta.participants) ? meta.participants : [];
           const otherId = parts.find(p => p.id !== userId)?.id;
           chatTitleEl.textContent = `Заявка #${meta.requestId||'?'}`;
           if (meta.isAdmin) addParticipantBtn.style.display = 'inline-block';
+
+          // если новых сообщений стало больше — покажем уведомление
+          if (msgs.length > lastMsgCount && lastMsgCount > 0) {
+            Telegram.WebApp.showAlert('Появились новые сообщения');
+          }
+          lastMsgCount = msgs.length;
 
           const wasAtBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 50;
           msgContainer.innerHTML = '';
@@ -166,6 +174,7 @@
             const div = document.createElement('div');
             div.className = 'message ' + (m.from===userId?'me':'you');
 
+            // ответ
             if (m.replyTo) {
               const rep = msgs.find(x=>x.id===m.replyTo);
               if (rep) {
@@ -176,6 +185,7 @@
               }
             }
 
+            // пузырёк
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
             if (m.text && !m.file) bubble.textContent = m.text;
@@ -194,6 +204,7 @@
               }
             }
 
+            // иконка «ответ»
             const repIcon = document.createElement('span');
             repIcon.className = 'replyIcon';
             repIcon.textContent = '↩';
@@ -203,14 +214,26 @@
               renderReplyPreview(m.text || (m.file?'[файл]':''));
             };
             bubble.appendChild(repIcon);
-
             div.appendChild(bubble);
 
+            // подпись роли и времени
             const md = document.createElement('div');
             md.className = 'meta';
+            let label;
+            if (m.from === userId) {
+              label = 'Клиент';
+            } else {
+              const p = parts.find(x=>x.id===m.from);
+              const role = p?.role?.toLowerCase();
+              if (role === 'manager')        label = 'Менеджер';
+              else if (role === 'client')    label = 'Клиент';
+              else if (p && p.role)          label = p.role.charAt(0).toUpperCase()+p.role.slice(1);
+              else                            label = 'Собеседник';
+            }
             const dt = new Date(m.ts);
-            md.textContent = (m.from===userId?'Вы':'Собеседник') +
-              ` • ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+            const hh = dt.getHours().toString().padStart(2,'0');
+            const mm = dt.getMinutes().toString().padStart(2,'0');
+            md.textContent = `${label} • ${hh}:${mm}`;
             div.appendChild(md);
 
             msgContainer.appendChild(div);
@@ -259,17 +282,15 @@
         if (!text) return;
         sendBtn.disabled = true;
         try {
-          // определяем otherId
           const parts = Array.isArray(meta.participants) ? meta.participants : [];
-          const otherId = parts.find(p => p.id !== userId)?.id;
+          const otherId = parts.find(p=>p.id!==userId)?.id;
           await fetch('/api/messages/send', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ chatId, from: userId, to: otherId, text, replyTo: replyToId })
           });
           Telegram.WebApp.sendData(JSON.stringify({
-            type: 'message',
-            chatId, from: userId, to: otherId, text
+            type:'message', chatId, from: userId, to: otherId, text
           }));
           replyToId = null;
           renderReplyPreview(null);
@@ -277,7 +298,7 @@
           autoResize();
           await load();
         } catch(e) {
-          alert('Ошибка: ' + e.message);
+          alert('Ошибка: '+e.message);
         } finally {
           sendBtn.disabled = !inputEl.value.trim();
         }
@@ -296,7 +317,7 @@
         const file = modalFileInput.files[0];
         const comment = fileCommentInput.value.trim();
         const parts = Array.isArray(meta.participants) ? meta.participants : [];
-        const otherId = parts.find(p => p.id !== userId)?.id;
+        const otherId = parts.find(p=>p.id!==userId)?.id;
         const form = new FormData();
         form.append('file', file);
         form.append('chatId', chatId);
@@ -308,9 +329,8 @@
         try {
           await fetch('/api/messages/send-file',{ method:'POST', body: form });
           Telegram.WebApp.sendData(JSON.stringify({
-            type:'message',
-            chatId, from: userId, to: otherId,
-            text: comment || '[файл]'
+            type:'message', chatId, from: userId, to: otherId,
+            text: comment||'[файл]'
           }));
           replyToId = null;
           renderReplyPreview(null);
@@ -321,6 +341,7 @@
         }
       };
 
+      // первичная загрузка + интервалы
       await load();
       setInterval(load, 1000);
       setInterval(updateStatus, 5000);
