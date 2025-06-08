@@ -1,53 +1,46 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta 
     name="viewport" 
     content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"
-  >
+  />
   <title>Список чатов</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header class="header">
-    <h1 class="header__title">Мои чаты</h1>
+  <header>
+    <h1>Мои чаты</h1>
   </header>
-  <main class="main">
-    <div id="chatList" class="chat-list">
-      <!-- здесь появятся chat-item -->
-    </div>
-  </main>
+  <div class="chat-list" id="chatList"></div>
 
   <script>
     Telegram.WebApp.ready();
     (async () => {
       const user = Telegram.WebApp.initDataUnsafe.user;
+      const list = document.getElementById('chatList');
       if (!user) {
-        document.getElementById('chatList').innerHTML = '<p class="center">Ошибка инициализации</p>';
-        return;
+        list.innerHTML = '<p>Ошибка инициализации</p>'; return;
       }
       try {
         const res = await fetch(`/api/chats?userId=${user.id}`);
         const chats = await res.json();
-        const container = document.getElementById('chatList');
         if (!chats.length) {
-          container.innerHTML = '<p class="center">У вас пока нет чатов</p>';
-          return;
+          list.innerHTML = '<p>У вас нет чатов</p>'; return;
         }
         chats.forEach(c => {
-          const item = document.createElement('div');
-          item.className = 'chat-item';
-          item.innerHTML = `
-            <div class="chat-item__left">
-              <div class="chat-item__avatar">${c.title.charAt(0)}</div>
-            </div>
+          const div = document.createElement('div');
+          div.className = 'chat-item';
+          div.innerHTML = `
+            <div class="chat-item__avatar">${c.title.charAt(0)}</div>
             <div class="chat-item__body">
               <div class="chat-item__title">${c.title}</div>
               <div class="chat-item__meta">
-                <span class="chat-item__role">${c.role}</span>
-                <span class="chat-item__unread">${c.unreadCount}</span>
+                <span class="role">${c.role}</span>
+                <span class="unread">${c.unreadCount}</span>
               </div>
             </div>
             <div class="chat-item__actions">
@@ -55,24 +48,17 @@
               <button class="btn details">Подробнее</button>
             </div>
           `;
-          // Открыть переписку
-          item.querySelector('.open').onclick = () => {
+          div.querySelector('.open').onclick = () => {
             Telegram.WebApp.openLink(`chat.html?chatId=${c.chatId}`);
           };
-          // Подробнее по заявке
-          item.querySelector('.details').onclick = async () => {
-            const det = await fetch(`/api/chat/${c.chatId}/details`).then(r => r.json());
-            // простая модалка через alert
-            alert(
-              'Детали заявки:\n' +
-              JSON.stringify(det, null, 2)
-            );
+          div.querySelector('.details').onclick = async () => {
+            const det = await fetch(`/api/chat/${c.chatId}/details`).then(r=>r.json());
+            alert(JSON.stringify(det, null, 2));
           };
-          container.appendChild(item);
+          list.appendChild(div);
         });
       } catch (e) {
-        console.error(e);
-        document.getElementById('chatList').innerHTML = '<p class="center">Ошибка загрузки чатов</p>';
+        list.innerHTML = '<p>Ошибка загрузки</p>';
       }
     })();
   </script>
