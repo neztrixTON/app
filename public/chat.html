@@ -1,164 +1,336 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta 
     name="viewport" 
-    content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"
-  >
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
+  />
   <title>Чат</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header class="header">
-    <button id="backBtn" class="header__back">&larr;</button>
-    <div class="header__info">
-      <h2 id="chatTitle" class="header__title">Чат</h2>
-      <span id="chatRole" class="header__role"></span>
+  <header>
+    <span id="backBtn">&#8592;</span>
+    <div>
+      <div id="chatTitle">Чат</div>
+      <div id="status">офлайн</div>
     </div>
-    <button id="addMasterBtn" class="header__add-master">Добавить мастера</button>
   </header>
 
+  <!-- Контейнер для сообщений -->
   <div class="messages" id="messagesContainer"></div>
 
-  <div class="input-bar">
-    <textarea id="messageInput" class="input-bar__textarea" placeholder="Введите сообщение..." rows="1"></textarea>
-    <button id="sendBtn" class="input-bar__send" disabled>Отправить</button>
+  <!-- Кнопка «⬇︎» для прокрутки к самому низу -->
+  <button id="scrollToBottomBtn">⬇︎</button>
+
+  <!-- Модалка для отправки файла + комментария -->
+  <div id="fileModalOverlay">
+    <div>
+      <h3>Отправить файл</h3>
+      <input type="file" id="modalFileInput" />
+      <textarea 
+        id="fileComment" 
+        placeholder="Комментарий (необязательно)"
+      ></textarea>
+      <button id="sendFileWithCommentBtn">Отправить</button>
+      <button id="cancelFileBtn" class="cancel">Отмена</button>
+    </div>
   </div>
 
-  <!-- Модалка добавления мастера -->
-  <div id="modalMaster" class="modal">
-    <div class="modal__content">
-      <h3 class="modal__title">Добавить мастера</h3>
-      <input id="masterIdInput" class="modal__input" placeholder="ID мастера" />
-      <button id="doAddMaster" class="btn modal__btn">Добавить</button>
-      <button id="cancelAddMaster" class="btn modal__btn modal__btn--cancel">Отмена</button>
-    </div>
+  <!-- Фиксированная панель ввода внизу -->
+  <div class="input-bar">
+    <textarea 
+      id="messageInput" 
+      placeholder="Введите сообщение..." 
+      rows="1"
+    ></textarea>
+    <button id="sendBtn" disabled>Отправить</button>
+    <button id="sendFileBtn">📎</button>
   </div>
 
   <script>
     Telegram.WebApp.ready();
 
-    const params = new URLSearchParams(window.location.search);
-    const chatId = params.get('chatId');
-    const user = Telegram.WebApp.initDataUnsafe.user;
-    if (!chatId || !user) {
-      document.body.innerHTML = '<p class="center">Неверные параметры!</p>';
-      throw new Error('No chatId or user');
-    }
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const chatId = params.get('chatId');
+      const user = Telegram.WebApp.initDataUnsafe?.user;
+      if (!user || !chatId) {
+        document.getElementById('messagesContainer').innerHTML =
+          '<p style="padding:12px; text-align:center;">Неверные параметры.</p>';
+        return;
+      }
+      const userId = String(user.id);
 
-    const titleEl       = document.getElementById('chatTitle');
-    const roleEl        = document.getElementById('chatRole');
-    const backBtn       = document.getElementById('backBtn');
-    const addMasterBtn  = document.getElementById('addMasterBtn');
-    const msgsContainer = document.getElementById('messagesContainer');
-    const inp           = document.getElementById('messageInput');
-    const sendBtn       = document.getElementById('sendBtn');
+      // Определим «другого» участника переписки по chatId
+      const [u1, u2] = chatId.split('_');
+      const other = (u1 === userId ? u2 : u1);
 
-    const modal        = document.getElementById('modalMaster');
-    const masterInput  = document.getElementById('masterIdInput');
-    const doAddMaster  = document.getElementById('doAddMaster');
-    const cancelAdd    = document.getElementById('cancelAddMaster');
+      const chatTitleEl       = document.getElementById('chatTitle');
+      const statusEl          = document.getElementById('status');
+      const backBtn           = document.getElementById('backBtn');
+      const msgContainer      = document.getElementById('messagesContainer');
+      const inputEl           = document.getElementById('messageInput');
+      const sendBtn           = document.getElementById('sendBtn');
+      const sendFileBtn       = document.getElementById('sendFileBtn');
+      const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
 
-    let myRole = null;
+      // Элементы модалки «файл + комментарий»
+      const fileModalOverlay       = document.getElementById('fileModalOverlay');
+      const modalFileInput         = document.getElementById('modalFileInput');
+      const fileCommentInput       = document.getElementById('fileComment');
+      const sendFileWithCommentBtn = document.getElementById('sendFileWithCommentBtn');
+      const cancelFileBtn          = document.getElementById('cancelFileBtn');
 
-    backBtn.onclick = () => Telegram.WebApp.close();
+      chatTitleEl.textContent = `Чат с ${other}`;
 
-    // Загрузка роли и мета
-    (async function init() {
-      try {
-        const res = await fetch(`/api/chats?userId=${user.id}`);
-        const list = await res.json();
-        const chat = list.find(c => c.chatId === chatId);
-        if (!chat) throw new Error('Chat not in your list');
-        titleEl.textContent = chat.title;
-        roleEl.textContent  = `(${chat.role})`;
-        myRole = chat.role;
-        if (myRole !== 'manager') {
-          addMasterBtn.style.display = 'none';
+      // Возвращаемся к списку чатов
+      backBtn.onclick = () => {
+        window.location.href = 'index.html';
+      };
+
+      // Обновление статуса собеседника (онлайн/офлайн)
+      async function updateStatus() {
+        try {
+          const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          statusEl.textContent = data.online ? 'онлайн' : 'офлайн';
+          statusEl.style.color   = data.online ? '#7CFC00' : '#888';
+        } catch(e) {
+          console.error('Не удалось получить статус:', e);
         }
-        loadMessages();
-        setInterval(loadMessages, 1000);
-      } catch (e) {
-        console.error(e);
-        msgsContainer.innerHTML = '<p class="center">Ошибка инициализации чата</p>';
       }
-    })();
+      updateStatus();
+      setInterval(updateStatus, 5000);
 
-    // Авто-рост textarea
-    inp.addEventListener('input', () => {
-      inp.style.height = 'auto';
-      inp.style.height = inp.scrollHeight + 'px';
-      sendBtn.disabled = inp.value.trim() === '';
-    });
+      // replyToId — ID сообщения, на которое пользователь хочет ответить
+      let replyToId = null;
 
-    sendBtn.onclick = async () => {
-      const text = inp.value.trim();
-      if (!text) return;
-      sendBtn.disabled = true;
-      await fetch('/api/messages/send', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          chatId, from: user.id, to: null, text
-        })
-      });
-      inp.value = '';
-      sendBtn.disabled = true;
-      loadMessages();
-    };
+      // Функция рендерит превью «Ответ на: ...» над полем ввода
+      function renderReplyPreview(text) {
+        const existing = document.getElementById('replyPreview');
+        if (existing) existing.remove();
+        if (!text) return;
+        const div = document.createElement('div');
+        div.id = 'replyPreview';
+        div.style.padding = '6px 12px';
+        div.style.backgroundColor = 'rgba(50,50,50,0.7)';
+        div.style.borderLeft = '3px solid #666';
+        div.style.margin = '8px 20px 0 20px';
+        div.style.borderRadius = '8px';
+        div.style.maxWidth = '80%';
+        div.style.whiteSpace = 'nowrap';
+        div.style.overflow = 'hidden';
+        div.style.textOverflow = 'ellipsis';
+        div.style.fontSize = '14px';
+        div.textContent = `Ответ на: ${text}`;
+        document.body.insertBefore(div, document.querySelector('.input-bar'));
+      }
 
-    async function loadMessages() {
-      try {
-        const res = await fetch(`/api/messages?chatId=${chatId}&userId=${user.id}`);
-        const msgs = await res.json();
-        msgsContainer.innerHTML = '';
-        msgs.forEach(m => {
-          const div = document.createElement('div');
-          div.className = 'message ' + (m.from == user.id ? 'me' : 'you');
-          // replyTo
-          if (m.replyTo) {
-            const rep = msgs.find(x => x.id === m.replyTo);
-            if (rep) {
-              const rdiv = document.createElement('div');
-              rdiv.className = 'message__reply';
-              rdiv.textContent = (rep.text || '[файл]').slice(0, 50);
-              div.appendChild(rdiv);
+      // Загрузка и рендер всех сообщений из БД (chat-db.json)
+      async function loadMessages() {
+        try {
+          const res = await fetch(
+            `/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`
+          );
+          if (!res.ok) throw new Error('Не удалось загрузить сообщения');
+          const msgs = await res.json();
+
+          // Проверяем, был ли пользователь внизу перед обновлением
+          const wasAtBottom = (msgContainer.scrollTop + msgContainer.clientHeight) >= (msgContainer.scrollHeight - 50);
+
+          msgContainer.innerHTML = '';
+
+          msgs.forEach(m => {
+            const div = document.createElement('div');
+            div.classList.add('message', (m.from === userId ? 'me' : 'you'));
+
+            // Если это ответ (m.replyTo), показываем текст оригинала или “[файл]”
+            if (m.replyTo) {
+              const replied = msgs.find(x => x.id === m.replyTo);
+              if (replied) {
+                const replyDiv = document.createElement('div');
+                replyDiv.classList.add('replyTo');
+                replyDiv.textContent = replied.text
+                  ? replied.text
+                  : '[файл]';
+                div.appendChild(replyDiv);
+              }
             }
-          }
-          const bubble = document.createElement('div');
-          bubble.className = 'message__bubble';
-          bubble.textContent = m.text || '';
-          div.appendChild(bubble);
-          const meta = document.createElement('div');
-          meta.className = 'message__meta';
-          const date = new Date(m.ts);
-          meta.textContent = `${m.from==user.id?'Вы':'Собеседник'} • ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
-          div.appendChild(meta);
-          msgsContainer.appendChild(div);
-        });
-        msgsContainer.scrollTop = msgsContainer.scrollHeight;
-      } catch (e) {
-        console.error(e);
-      }
-    }
 
-    // Добавление мастера
-    addMasterBtn.onclick = () => modal.classList.add('modal--open');
-    cancelAdd.onclick = () => modal.classList.remove('modal--open');
-    doAddMaster.onclick = async () => {
-      const mid = masterInput.value.trim();
-      if (!mid) return;
-      await fetch(`/api/chat/${chatId}/add-master`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ managerId: user.id, masterId: mid })
+            // Пузырёк сообщения
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble');
+
+            // Если есть текст (текстовое сообщение без файла)
+            if (m.text && !m.file) {
+              bubble.textContent = m.text;
+            }
+            // Если есть файл — показываем ссылку и комментарий
+            if (m.file) {
+              const link = document.createElement('a');
+              link.href = m.file;
+              link.textContent = '📎 Файл';
+              link.classList.add('fileLink');
+              link.target = '_blank';
+              bubble.appendChild(link);
+              // Комментарий под ссылкой
+              if (m.text) {
+                const commentDiv = document.createElement('div');
+                commentDiv.classList.add('fileComment');
+                commentDiv.textContent = m.text;
+                bubble.appendChild(commentDiv);
+              }
+            }
+
+            // Иконка «↩» (reply) в правом верхнем углу bubble
+            const replyIcon = document.createElement('span');
+            replyIcon.classList.add('replyIcon');
+            replyIcon.textContent = '↩';
+            replyIcon.onclick = (e) => {
+              e.stopPropagation();
+              replyToId = m.id;
+              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
+            };
+            bubble.appendChild(replyIcon);
+
+            div.appendChild(bubble);
+
+            // Мета-информация: время и «Вы/Собеседник»
+            const meta = document.createElement('div');
+            meta.classList.add('meta');
+            const date = new Date(m.ts);
+            const hh = String(date.getHours()).padStart(2, '0');
+            const mm = String(date.getMinutes()).padStart(2, '0');
+            meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
+            div.appendChild(meta);
+
+            msgContainer.appendChild(div);
+          });
+
+          // Если пользователь был внизу, скроллим вниз снова:
+          // иначе оставляем текущую позицию прокрутки
+          if (wasAtBottom) {
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+            scrollToBottomBtn.style.display = 'none';
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      // Первоначальная загрузка + автообновление сообщений каждую секунду
+      loadMessages();
+      setInterval(loadMessages, 1000);
+
+      // Обработчик прокрутки .messages: если пользователь уехал вверх,
+      // показываем кнопку «⬇︎». Когда он возвращается почти вниз, скрываем кнопку.
+      msgContainer.addEventListener('scroll', () => {
+        const distanceFromBottom = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
+        if (distanceFromBottom > 50) {
+          // Пользователь прокрутил вверх, показываем кнопку
+          scrollToBottomBtn.style.display = 'flex';
+        } else {
+          // Почти внизу — скрываем кнопку
+          scrollToBottomBtn.style.display = 'none';
+        }
       });
-      modal.classList.remove('modal--open');
-      masterInput.value = '';
-      alert('Мастер добавлен');
-    };
+
+      // При клике на кнопку «⬇︎» скроллим в самый низ
+      scrollToBottomBtn.addEventListener('click', () => {
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        scrollToBottomBtn.style.display = 'none';
+      });
+
+      // Авто‐расширение textarea по вводу
+      function autoResizeTextarea() {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = inputEl.scrollHeight + 'px';
+      }
+      inputEl.addEventListener('input', () => {
+        autoResizeTextarea();
+        sendBtn.disabled = inputEl.value.trim() === '';
+      });
+
+      // Отправка текстового сообщения
+      sendBtn.addEventListener('click', async () => {
+        const text = inputEl.value.trim();
+        if (!text) return;
+        sendBtn.disabled = true;
+        try {
+          await fetch('/api/messages/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId,
+              from: userId,
+              to: other,
+              text,
+              replyTo: replyToId
+            })
+          });
+          replyToId = null;
+          renderReplyPreview(null);
+          inputEl.value = '';
+          autoResizeTextarea();
+          await loadMessages(); // обновляем и, если нужно, скроллим вниз
+        } catch (err) {
+          alert('Ошибка: ' + err.message);
+          console.error(err);
+        } finally {
+          sendBtn.disabled = inputEl.value.trim() === '';
+        }
+      });
+
+      // Показать модалку для файла
+      sendFileBtn.addEventListener('click', () => {
+        modalFileInput.value = '';
+        fileCommentInput.value = '';
+        fileModalOverlay.style.display = 'flex';
+      });
+
+      // Отмена загрузки файла
+      cancelFileBtn.addEventListener('click', () => {
+        fileModalOverlay.style.display = 'none';
+      });
+
+      // Отправка файла + комментария
+      sendFileWithCommentBtn.addEventListener('click', async () => {
+        if (!modalFileInput.files.length) {
+          alert('Выберите файл');
+          return;
+        }
+        const file = modalFileInput.files[0];
+        const comment = fileCommentInput.value.trim();
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chatId', chatId);
+        formData.append('from', userId);
+        formData.append('to', other);
+        if (replyToId) formData.append('replyTo', replyToId);
+        if (comment) formData.append('text', comment);
+
+        try {
+          await fetch('/api/messages/send-file', {
+            method: 'POST',
+            body: formData
+          });
+          replyToId = null;
+          renderReplyPreview(null);
+          fileModalOverlay.style.display = 'none';
+          await loadMessages();
+        } catch (err) {
+          alert('Не удалось отправить файл');
+          console.error(err);
+        } finally {
+          modalFileInput.value = '';
+        }
+      });
+    })();
   </script>
 </body>
 </html>
