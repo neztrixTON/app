@@ -17,10 +17,11 @@
 
   <script>
     Telegram.WebApp.ready();
-    (async ()=> {
-      const init = Telegram.WebApp.initDataUnsafe || {};
-      const user = init.user;
-      if(!user) {
+
+    (function() {
+      const initData = Telegram.WebApp.initDataUnsafe || {};
+      const user = initData.user;
+      if (!user) {
         document.getElementById('chatList').innerHTML =
           '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
         return;
@@ -28,23 +29,26 @@
       const userId = String(user.id);
       const chatListEl = document.getElementById('chatList');
 
-      async function loadChats(){
+      async function loadChats() {
         try {
           const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
-          if(!res.ok) throw '';
+          if (!res.ok) throw new Error('Не удалось получить чаты');
           const chats = await res.json();
-          chatListEl.innerHTML='';
-          if(!chats.length){
-            chatListEl.innerHTML='<p style="padding:12px;">Чатов нет.</p>';
+          chatListEl.innerHTML = '';
+          if (chats.length === 0) {
+            chatListEl.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
             return;
           }
-          chats.forEach(chat=>{
-            const onlineColor = chat.online?'#0f0':'#888';
-            const statusText  = chat.online?'онлайн':'офлайн';
-            const unreadHTML  = chat.unreadCount>0
-              ? `<span class="unread">${chat.unreadCount}</span>` : '';
+          chats.forEach(chat => {
             const div = document.createElement('div');
             div.className = 'chat-item';
+
+            const onlineColor = chat.online ? '#0f0' : '#888';
+            const statusText  = chat.online ? 'онлайн' : 'офлайн';
+            const unreadHTML  = chat.unreadCount > 0
+              ? `<span class="unread">${chat.unreadCount}</span>`
+              : '';
+
             div.innerHTML = `
               <div class="avatar"></div>
               <div class="info">
@@ -54,31 +58,33 @@
                   ${unreadHTML}
                 </div>
                 <button class="details-btn">Подробнее</button>
-              </div>`;
-            // открытие чата по клику
-            div.onclick = e=>{
-              if(e.target.classList.contains('details-btn')) return;
+              </div>
+            `;
+            // клик по item открывает чат, но не кнопку «Подробнее»
+            div.addEventListener('click', e => {
+              if (e.target.classList.contains('details-btn')) return;
               window.location.href = `chat.html?chatId=${encodeURIComponent(chat.chatId)}`;
-            };
+            });
             // кнопка «Подробнее»
-            div.querySelector('.details-btn').onclick = ()=>{
-              const m = chat.meta||{};
+            div.querySelector('.details-btn').addEventListener('click', () => {
+              const m = chat.meta || {};
               alert(
-                `Заявка #${m.requestId||'?'}\n`+
-                `Тип: ${m.type||'-'}\n`+
-                `Адрес: ${m.address||'-'}\n`+
-                `Дата: ${m.createdAt||'-'}`
+                `Заявка #${m.requestId || '?'}\n` +
+                `Тип: ${m.type || '-'}\n` +
+                `Адрес: ${m.address || '-'}\n` +
+                `Дата: ${m.createdAt || '-'}`
               );
-            };
+            });
+
             chatListEl.appendChild(div);
           });
-        } catch(e){
-          chatListEl.innerHTML = `<p style="padding:12px;">Ошибка загрузки.</p>`;
+        } catch (err) {
+          chatListEl.innerHTML = `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
         }
       }
 
       loadChats();
-      setInterval(loadChats,5000);
+      setInterval(loadChats, 5000);
     })();
   </script>
 </body>
