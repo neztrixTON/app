@@ -2,10 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta 
-    name="viewport" 
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
-  />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Чат</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -30,8 +28,8 @@
     <div>
       <h3>Отправить файл</h3>
       <input type="file" id="modalFileInput" />
-      <textarea 
-        id="fileComment" 
+      <textarea
+        id="fileComment"
         placeholder="Комментарий (необязательно)"
       ></textarea>
       <button id="sendFileWithCommentBtn">Отправить</button>
@@ -41,9 +39,9 @@
 
   <!-- Фиксированная панель ввода внизу -->
   <div class="input-bar">
-    <textarea 
-      id="messageInput" 
-      placeholder="Введите сообщение..." 
+    <textarea
+      id="messageInput"
+      placeholder="Введите сообщение..."
       rows="1"
     ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
@@ -77,7 +75,6 @@
       const sendFileBtn       = document.getElementById('sendFileBtn');
       const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
 
-      // Элементы модалки «файл + комментарий»
       const fileModalOverlay       = document.getElementById('fileModalOverlay');
       const modalFileInput         = document.getElementById('modalFileInput');
       const fileCommentInput       = document.getElementById('fileComment');
@@ -86,19 +83,17 @@
 
       chatTitleEl.textContent = `Чат с ${other}`;
 
-      // Возвращаемся к списку чатов
       backBtn.onclick = () => {
         window.location.href = 'index.html';
       };
 
-      // Обновление статуса собеседника (онлайн/офлайн)
       async function updateStatus() {
         try {
           const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
           if (!res.ok) throw new Error();
-          const data = await res.json();
-          statusEl.textContent = data.online ? 'онлайн' : 'офлайн';
-          statusEl.style.color   = data.online ? '#7CFC00' : '#888';
+          const d = await res.json();
+          statusEl.textContent = d.online ? 'онлайн' : 'офлайн';
+          statusEl.style.color   = d.online ? '#7CFC00' : '#888';
         } catch(e) {
           console.error('Не удалось получить статус:', e);
         }
@@ -106,10 +101,7 @@
       updateStatus();
       setInterval(updateStatus, 5000);
 
-      // replyToId — ID сообщения, на которое пользователь хочет ответить
       let replyToId = null;
-
-      // Функция рендерит превью «Ответ на: ...» над полем ввода
       function renderReplyPreview(text) {
         const existing = document.getElementById('replyPreview');
         if (existing) existing.remove();
@@ -130,7 +122,6 @@
         document.body.insertBefore(div, document.querySelector('.input-bar'));
       }
 
-      // Загрузка и рендер всех сообщений из БД (chat-db.json)
       async function loadMessages() {
         try {
           const res = await fetch(
@@ -139,16 +130,13 @@
           if (!res.ok) throw new Error('Не удалось загрузить сообщения');
           const msgs = await res.json();
 
-          // Проверяем, был ли пользователь внизу перед обновлением
           const wasAtBottom = (msgContainer.scrollTop + msgContainer.clientHeight) >= (msgContainer.scrollHeight - 50);
-
           msgContainer.innerHTML = '';
 
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.classList.add('message', (m.from === userId ? 'me' : 'you'));
 
-            // Если это ответ (m.replyTo), показываем текст оригинала или “[файл]”
             if (m.replyTo) {
               const replied = msgs.find(x => x.id === m.replyTo);
               if (replied) {
@@ -161,15 +149,12 @@
               }
             }
 
-            // Пузырёк сообщения
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
 
-            // Если есть текст (текстовое сообщение без файла)
             if (m.text && !m.file) {
               bubble.textContent = m.text;
             }
-            // Если есть файл — показываем ссылку и комментарий
             if (m.file) {
               const link = document.createElement('a');
               link.href = m.file;
@@ -177,7 +162,6 @@
               link.classList.add('fileLink');
               link.target = '_blank';
               bubble.appendChild(link);
-              // Комментарий под ссылкой
               if (m.text) {
                 const commentDiv = document.createElement('div');
                 commentDiv.classList.add('fileComment');
@@ -186,7 +170,6 @@
               }
             }
 
-            // Иконка «↩» (reply) в правом верхнем углу bubble
             const replyIcon = document.createElement('span');
             replyIcon.classList.add('replyIcon');
             replyIcon.textContent = '↩';
@@ -199,7 +182,6 @@
 
             div.appendChild(bubble);
 
-            // Мета-информация: время и «Вы/Собеседник»
             const meta = document.createElement('div');
             meta.classList.add('meta');
             const date = new Date(m.ts);
@@ -211,8 +193,6 @@
             msgContainer.appendChild(div);
           });
 
-          // Если пользователь был внизу, скроллим вниз снова:
-          // иначе оставляем текущую позицию прокрутки
           if (wasAtBottom) {
             msgContainer.scrollTop = msgContainer.scrollHeight;
             scrollToBottomBtn.style.display = 'none';
@@ -222,30 +202,18 @@
         }
       }
 
-      // Первоначальная загрузка + автообновление сообщений каждую секунду
       loadMessages();
       setInterval(loadMessages, 1000);
 
-      // Обработчик прокрутки .messages: если пользователь уехал вверх,
-      // показываем кнопку «⬇︎». Когда он возвращается почти вниз, скрываем кнопку.
       msgContainer.addEventListener('scroll', () => {
-        const distanceFromBottom = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
-        if (distanceFromBottom > 50) {
-          // Пользователь прокрутил вверх, показываем кнопку
-          scrollToBottomBtn.style.display = 'flex';
-        } else {
-          // Почти внизу — скрываем кнопку
-          scrollToBottomBtn.style.display = 'none';
-        }
+        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
+        scrollToBottomBtn.style.display = dist > 50 ? 'flex' : 'none';
       });
-
-      // При клике на кнопку «⬇︎» скроллим в самый низ
       scrollToBottomBtn.addEventListener('click', () => {
         msgContainer.scrollTop = msgContainer.scrollHeight;
         scrollToBottomBtn.style.display = 'none';
       });
 
-      // Авто‐расширение textarea по вводу
       function autoResizeTextarea() {
         inputEl.style.height = 'auto';
         inputEl.style.height = inputEl.scrollHeight + 'px';
@@ -272,11 +240,19 @@
               replyTo: replyToId
             })
           });
+          // уведомляем бот-а
+          Telegram.WebApp.sendData(JSON.stringify({
+            type: 'message',
+            chatId,
+            from: userId,
+            to: other,
+            text
+          }));
           replyToId = null;
           renderReplyPreview(null);
           inputEl.value = '';
           autoResizeTextarea();
-          await loadMessages(); // обновляем и, если нужно, скроллим вниз
+          await loadMessages();
         } catch (err) {
           alert('Ошибка: ' + err.message);
           console.error(err);
@@ -285,19 +261,15 @@
         }
       });
 
-      // Показать модалку для файла
+      // Отправка файла + комментария
       sendFileBtn.addEventListener('click', () => {
         modalFileInput.value = '';
         fileCommentInput.value = '';
         fileModalOverlay.style.display = 'flex';
       });
-
-      // Отмена загрузки файла
       cancelFileBtn.addEventListener('click', () => {
         fileModalOverlay.style.display = 'none';
       });
-
-      // Отправка файла + комментария
       sendFileWithCommentBtn.addEventListener('click', async () => {
         if (!modalFileInput.files.length) {
           alert('Выберите файл');
@@ -305,7 +277,6 @@
         }
         const file = modalFileInput.files[0];
         const comment = fileCommentInput.value.trim();
-
         const formData = new FormData();
         formData.append('file', file);
         formData.append('chatId', chatId);
@@ -319,6 +290,14 @@
             method: 'POST',
             body: formData
           });
+          // уведомляем бот-а
+          Telegram.WebApp.sendData(JSON.stringify({
+            type: 'message',
+            chatId,
+            from: userId,
+            to: other,
+            text: comment || '[файл]'
+          }));
           replyToId = null;
           renderReplyPreview(null);
           fileModalOverlay.style.display = 'none';
@@ -326,8 +305,6 @@
         } catch (err) {
           alert('Не удалось отправить файл');
           console.error(err);
-        } finally {
-          modalFileInput.value = '';
         }
       });
     })();
