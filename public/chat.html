@@ -2,30 +2,33 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
   <title>Чат</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <header>
-    <span id="backBtn">&#8592;</span>
-    <div>
+    <span id="backBtn" class="back-btn">&#8592;</span>
+    <div class="header-info">
       <div id="chatTitle">Чат</div>
       <div id="status">офлайн</div>
     </div>
+    <button id="detailsBtn" class="header-btn">Подробнее</button>
+    <button id="addParticipantBtn" class="header-btn" style="display: none;">
+      Добавить участника
+    </button>
   </header>
 
-  <!-- Контейнер для сообщений -->
   <div class="messages" id="messagesContainer"></div>
-
-  <!-- Кнопка «⬇︎» для прокрутки к самому низу -->
-  <button id="scrollToBottomBtn">⬇︎</button>
+  <button id="scrollToBottomBtn" class="scroll-btn">⬇︎</button>
 
   <!-- Модалка для отправки файла + комментария -->
-  <div id="fileModalOverlay">
-    <div>
+  <div id="fileModalOverlay" class="modal-overlay">
+    <div class="modal">
       <h3>Отправить файл</h3>
       <input type="file" id="modalFileInput" />
       <textarea
@@ -33,11 +36,25 @@
         placeholder="Комментарий (необязательно)"
       ></textarea>
       <button id="sendFileWithCommentBtn">Отправить</button>
-      <button id="cancelFileBtn" class="cancel">Отмена</button>
+      <button id="cancelFileBtn" class="cancel-btn">Отмена</button>
     </div>
   </div>
 
-  <!-- Фиксированная панель ввода внизу -->
+  <!-- Модалка для добавления участника -->
+  <div id="participantModalOverlay" class="modal-overlay">
+    <div class="modal">
+      <h3>Добавить участника</h3>
+      <input
+        type="text"
+        id="newParticipantInput"
+        placeholder="ID участника и роль, например: 123456 Мастер"
+      />
+      <button id="addParticipantConfirmBtn">Добавить</button>
+      <button id="addParticipantCancelBtn" class="cancel-btn">Отмена</button>
+    </div>
+  </div>
+
+  <!-- Фиксированная панель ввода -->
   <div class="input-bar">
     <textarea
       id="messageInput"
@@ -51,262 +68,340 @@
   <script>
     Telegram.WebApp.ready();
 
-    (function() {
+    (async function () {
+      // Инициализация переменных
       const params = new URLSearchParams(window.location.search);
-      const chatId = params.get('chatId');
+      const chatId = params.get("chatId");
       const user = Telegram.WebApp.initDataUnsafe?.user;
       if (!user || !chatId) {
-        document.getElementById('messagesContainer').innerHTML =
+        document.getElementById("messagesContainer").innerHTML =
           '<p style="padding:12px; text-align:center;">Неверные параметры.</p>';
         return;
       }
       const userId = String(user.id);
 
-      // Определим «другого» участника переписки по chatId
-      const [u1, u2] = chatId.split('_');
-      const other = (u1 === userId ? u2 : u1);
+      // Элементы DOM
+      const backBtn = document.getElementById("backBtn");
+      const chatTitleEl = document.getElementById("chatTitle");
+      const statusEl = document.getElementById("status");
+      const detailsBtn = document.getElementById("detailsBtn");
+      const addParticipantBtn = document.getElementById(
+        "addParticipantBtn"
+      );
+      const msgContainer = document.getElementById("messagesContainer");
+      const scrollBtn = document.getElementById("scrollToBottomBtn");
 
-      const chatTitleEl       = document.getElementById('chatTitle');
-      const statusEl          = document.getElementById('status');
-      const backBtn           = document.getElementById('backBtn');
-      const msgContainer      = document.getElementById('messagesContainer');
-      const inputEl           = document.getElementById('messageInput');
-      const sendBtn           = document.getElementById('sendBtn');
-      const sendFileBtn       = document.getElementById('sendFileBtn');
-      const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
+      const fileModalOverlay = document.getElementById("fileModalOverlay");
+      const modalFileInput = document.getElementById("modalFileInput");
+      const fileCommentInput = document.getElementById("fileComment");
+      const sendFileWithCommentBtn = document.getElementById(
+        "sendFileWithCommentBtn"
+      );
+      const cancelFileBtn = document.getElementById("cancelFileBtn");
 
-      const fileModalOverlay       = document.getElementById('fileModalOverlay');
-      const modalFileInput         = document.getElementById('modalFileInput');
-      const fileCommentInput       = document.getElementById('fileComment');
-      const sendFileWithCommentBtn = document.getElementById('sendFileWithCommentBtn');
-      const cancelFileBtn          = document.getElementById('cancelFileBtn');
+      const participantModalOverlay = document.getElementById(
+        "participantModalOverlay"
+      );
+      const newParticipantInput = document.getElementById(
+        "newParticipantInput"
+      );
+      const addParticipantConfirmBtn = document.getElementById(
+        "addParticipantConfirmBtn"
+      );
+      const addParticipantCancelBtn = document.getElementById(
+        "addParticipantCancelBtn"
+      );
 
-      chatTitleEl.textContent = `Чат с ${other}`;
+      const inputEl = document.getElementById("messageInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const sendFileBtn = document.getElementById("sendFileBtn");
 
-      backBtn.onclick = () => {
-        window.location.href = 'index.html';
+      let meta = {};
+      let replyToId = null;
+
+      // Навигация назад
+      backBtn.onclick = () => (window.location.href = "index.html");
+
+      // Показать подробности заявки
+      detailsBtn.onclick = () => {
+        alert(
+          `Заявка #${meta.requestId}\nТип: ${meta.type}\nАдрес: ${meta.address}\nДата: ${meta.createdAt}`
+        );
       };
 
-      async function updateStatus() {
+      // Обработчик «Добавить участника»
+      addParticipantBtn.onclick = () => {
+        newParticipantInput.value = "";
+        participantModalOverlay.style.display = "flex";
+      };
+      addParticipantCancelBtn.onclick = () => {
+        participantModalOverlay.style.display = "none";
+      };
+      addParticipantConfirmBtn.onclick = async () => {
+        const val = newParticipantInput.value.trim();
+        if (!val) return alert("Введите ID и роль");
+        const [uid, ...roleArr] = val.split(" ");
+        const role = roleArr.join(" ");
         try {
-          const res = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
-          if (!res.ok) throw new Error();
-          const d = await res.json();
-          statusEl.textContent = d.online ? 'онлайн' : 'офлайн';
-          statusEl.style.color   = d.online ? '#7CFC00' : '#888';
-        } catch(e) {
-          console.error('Не удалось получить статус:', e);
+          const r = await fetch("/api/add-to-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chatId, userId: uid, role }),
+          });
+          if (!r.ok) throw new Error();
+          alert("Участник добавлен");
+          participantModalOverlay.style.display = "none";
+        } catch {
+          alert("Ошибка при добавлении");
         }
-      }
-      updateStatus();
-      setInterval(updateStatus, 5000);
+      };
 
-      let replyToId = null;
-      function renderReplyPreview(text) {
-        const existing = document.getElementById('replyPreview');
-        if (existing) existing.remove();
-        if (!text) return;
-        const div = document.createElement('div');
-        div.id = 'replyPreview';
-        div.style.padding = '6px 12px';
-        div.style.backgroundColor = 'rgba(50,50,50,0.7)';
-        div.style.borderLeft = '3px solid #666';
-        div.style.margin = '8px 20px 0 20px';
-        div.style.borderRadius = '8px';
-        div.style.maxWidth = '80%';
-        div.style.whiteSpace = 'nowrap';
-        div.style.overflow = 'hidden';
-        div.style.textOverflow = 'ellipsis';
-        div.style.fontSize = '14px';
-        div.textContent = `Ответ на: ${text}`;
-        document.body.insertBefore(div, document.querySelector('.input-bar'));
-      }
-
-      async function loadMessages() {
+      // Обновление статуса «онлайн/офлайн»
+      async function updateStatus() {
+        const other = meta.participants?.find((p) => p.id !== userId)?.id;
+        if (!other) return;
         try {
           const res = await fetch(
-            `/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`
+            `/api/status?userId=${encodeURIComponent(other)}`
           );
-          if (!res.ok) throw new Error('Не удалось загрузить сообщения');
-          const msgs = await res.json();
+          const data = await res.json();
+          statusEl.textContent = data.online ? "онлайн" : "офлайн";
+          statusEl.style.color = data.online ? "#7CFC00" : "#888";
+        } catch {}
+      }
 
-          const wasAtBottom = (msgContainer.scrollTop + msgContainer.clientHeight) >= (msgContainer.scrollHeight - 50);
-          msgContainer.innerHTML = '';
+      // Загрузка сообщений и метаданных
+      async function load() {
+        try {
+          const res = await fetch(
+            `/api/messages?chatId=${encodeURIComponent(
+              chatId
+            )}&userId=${encodeURIComponent(userId)}`
+          );
+          const body = await res.json();
+          const msgs = body.messages;
+          meta = body.meta;
 
-          msgs.forEach(m => {
-            const div = document.createElement('div');
-            div.classList.add('message', (m.from === userId ? 'me' : 'you'));
+          // Обновяем заголовок с номером заявки
+          chatTitleEl.textContent = `Заявка #${meta.requestId}`;
 
+          // Показываем кнопку «Добавить участника» если админ
+          if (body.meta.isAdmin) {
+            addParticipantBtn.style.display = "inline-block";
+          }
+
+          // Рендер сообщений
+          const wasAtBottom =
+            msgContainer.scrollTop + msgContainer.clientHeight >=
+            msgContainer.scrollHeight - 50;
+          msgContainer.innerHTML = "";
+          msgs.forEach((m) => {
+            const div = document.createElement("div");
+            div.classList.add("message", m.from === userId ? "me" : "you");
+
+            // Ответ на сообщение
             if (m.replyTo) {
-              const replied = msgs.find(x => x.id === m.replyTo);
+              const replied = msgs.find((x) => x.id === m.replyTo);
               if (replied) {
-                const replyDiv = document.createElement('div');
-                replyDiv.classList.add('replyTo');
+                const replyDiv = document.createElement("div");
+                replyDiv.classList.add("replyTo");
                 replyDiv.textContent = replied.text
                   ? replied.text
-                  : '[файл]';
+                  : "[файл]";
                 div.appendChild(replyDiv);
               }
             }
 
-            const bubble = document.createElement('div');
-            bubble.classList.add('bubble');
-
+            // Пузырёк
+            const bubble = document.createElement("div");
+            bubble.classList.add("bubble");
             if (m.text && !m.file) {
               bubble.textContent = m.text;
             }
             if (m.file) {
-              const link = document.createElement('a');
+              const link = document.createElement("a");
               link.href = m.file;
-              link.textContent = '📎 Файл';
-              link.classList.add('fileLink');
-              link.target = '_blank';
+              link.textContent = "📎 Файл";
+              link.classList.add("fileLink");
+              link.target = "_blank";
               bubble.appendChild(link);
               if (m.text) {
-                const commentDiv = document.createElement('div');
-                commentDiv.classList.add('fileComment');
-                commentDiv.textContent = m.text;
-                bubble.appendChild(commentDiv);
+                const comment = document.createElement("div");
+                comment.classList.add("fileComment");
+                comment.textContent = m.text;
+                bubble.appendChild(comment);
               }
             }
 
-            const replyIcon = document.createElement('span');
-            replyIcon.classList.add('replyIcon');
-            replyIcon.textContent = '↩';
+            // Кнопка «↩» для ответа
+            const replyIcon = document.createElement("span");
+            replyIcon.classList.add("replyIcon");
+            replyIcon.textContent = "↩";
             replyIcon.onclick = (e) => {
               e.stopPropagation();
               replyToId = m.id;
-              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
+              renderReplyPreview(m.text || (m.file ? "[файл]" : ""));
             };
             bubble.appendChild(replyIcon);
 
             div.appendChild(bubble);
 
-            const meta = document.createElement('div');
-            meta.classList.add('meta');
-            const date = new Date(m.ts);
-            const hh = String(date.getHours()).padStart(2, '0');
-            const mm = String(date.getMinutes()).padStart(2, '0');
-            meta.textContent = (m.from === userId ? 'Вы' : 'Собеседник') + ` • ${hh}:${mm}`;
-            div.appendChild(meta);
+            // Метаданные: время
+            const metaDiv = document.createElement("div");
+            metaDiv.classList.add("meta");
+            const dt = new Date(m.ts);
+            const hh = String(dt.getHours()).padStart(2, "0");
+            const mm = String(dt.getMinutes()).padStart(2, "0");
+            metaDiv.textContent =
+              (m.from === userId ? "Вы" : "Собеседник") + ` • ${hh}:${mm}`;
+            div.appendChild(metaDiv);
 
             msgContainer.appendChild(div);
           });
 
           if (wasAtBottom) {
             msgContainer.scrollTop = msgContainer.scrollHeight;
-            scrollToBottomBtn.style.display = 'none';
+            scrollBtn.style.display = "none";
           }
-        } catch (err) {
-          console.error(err);
+        } catch (e) {
+          console.error(e);
         }
       }
 
-      loadMessages();
-      setInterval(loadMessages, 1000);
-
-      msgContainer.addEventListener('scroll', () => {
-        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
-        scrollToBottomBtn.style.display = dist > 50 ? 'flex' : 'none';
-      });
-      scrollToBottomBtn.addEventListener('click', () => {
-        msgContainer.scrollTop = msgContainer.scrollHeight;
-        scrollToBottomBtn.style.display = 'none';
-      });
-
-      function autoResizeTextarea() {
-        inputEl.style.height = 'auto';
-        inputEl.style.height = inputEl.scrollHeight + 'px';
+      // Превью для ответа
+      function renderReplyPreview(text) {
+        const existing = document.getElementById("replyPreview");
+        if (existing) existing.remove();
+        if (!text) return;
+        const div = document.createElement("div");
+        div.id = "replyPreview";
+        div.textContent = `Ответ на: ${text}`;
+        div.className = "replyPreview";
+        document.body.insertBefore(
+          div,
+          document.querySelector(".input-bar")
+        );
       }
-      inputEl.addEventListener('input', () => {
-        autoResizeTextarea();
-        sendBtn.disabled = inputEl.value.trim() === '';
+
+      // Авто‑расширение textarea
+      function autoResizeTextarea() {
+        inputEl.style.height = "auto";
+        inputEl.style.height = inputEl.scrollHeight + "px";
+      }
+
+      // Обработчики прокрутки
+      msgContainer.addEventListener("scroll", () => {
+        const dist =
+          msgContainer.scrollHeight -
+          (msgContainer.scrollTop + msgContainer.clientHeight);
+        scrollBtn.style.display = dist > 50 ? "flex" : "none";
+      });
+      scrollBtn.addEventListener("click", () => {
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        scrollBtn.style.display = "none";
       });
 
-      // Отправка текстового сообщения
-      sendBtn.addEventListener('click', async () => {
+      // Отправка текста
+      inputEl.addEventListener("input", () => {
+        autoResizeTextarea();
+        sendBtn.disabled = inputEl.value.trim() === "";
+      });
+      sendBtn.addEventListener("click", async () => {
         const text = inputEl.value.trim();
         if (!text) return;
         sendBtn.disabled = true;
         try {
-          await fetch('/api/messages/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          await fetch("/api/messages/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chatId,
               from: userId,
-              to: other,
+              to: meta.participants.find((p) => p.id !== userId).id,
               text,
-              replyTo: replyToId
-            })
+              replyTo: replyToId,
+            }),
           });
-          // уведомляем бот-а
-          Telegram.WebApp.sendData(JSON.stringify({
-            type: 'message',
-            chatId,
-            from: userId,
-            to: other,
-            text
-          }));
+          // уведомление боту
+          Telegram.WebApp.sendData(
+            JSON.stringify({
+              type: "message",
+              chatId,
+              from: userId,
+              to: meta.participants
+                .map((p) => p.id)
+                .filter((id) => id !== userId)[0],
+              text,
+            })
+          );
           replyToId = null;
           renderReplyPreview(null);
-          inputEl.value = '';
+          inputEl.value = "";
           autoResizeTextarea();
-          await loadMessages();
-        } catch (err) {
-          alert('Ошибка: ' + err.message);
-          console.error(err);
+          await load();
+        } catch (e) {
+          alert("Ошибка: " + e.message);
         } finally {
-          sendBtn.disabled = inputEl.value.trim() === '';
+          sendBtn.disabled = inputEl.value.trim() === "";
         }
       });
 
-      // Отправка файла + комментария
-      sendFileBtn.addEventListener('click', () => {
-        modalFileInput.value = '';
-        fileCommentInput.value = '';
-        fileModalOverlay.style.display = 'flex';
+      // Отправка файла
+      sendFileBtn.addEventListener("click", () => {
+        modalFileInput.value = "";
+        fileCommentInput.value = "";
+        fileModalOverlay.style.display = "flex";
       });
-      cancelFileBtn.addEventListener('click', () => {
-        fileModalOverlay.style.display = 'none';
+      cancelFileBtn.addEventListener("click", () => {
+        fileModalOverlay.style.display = "none";
       });
-      sendFileWithCommentBtn.addEventListener('click', async () => {
+      sendFileWithCommentBtn.addEventListener("click", async () => {
         if (!modalFileInput.files.length) {
-          alert('Выберите файл');
-          return;
+          return alert("Выберите файл");
         }
         const file = modalFileInput.files[0];
         const comment = fileCommentInput.value.trim();
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('chatId', chatId);
-        formData.append('from', userId);
-        formData.append('to', other);
-        if (replyToId) formData.append('replyTo', replyToId);
-        if (comment) formData.append('text', comment);
+        const form = new FormData();
+        form.append("file", file);
+        form.append("chatId", chatId);
+        form.append("from", userId);
+        form.append(
+          "to",
+          meta.participants.find((p) => p.id !== userId).id
+        );
+        if (replyToId) form.append("replyTo", replyToId);
+        if (comment) form.append("text", comment);
 
         try {
-          await fetch('/api/messages/send-file', {
-            method: 'POST',
-            body: formData
+          await fetch("/api/messages/send-file", {
+            method: "POST",
+            body: form,
           });
-          // уведомляем бот-а
-          Telegram.WebApp.sendData(JSON.stringify({
-            type: 'message',
-            chatId,
-            from: userId,
-            to: other,
-            text: comment || '[файл]'
-          }));
+          // уведомление боту
+          Telegram.WebApp.sendData(
+            JSON.stringify({
+              type: "message",
+              chatId,
+              from: userId,
+              to: meta.participants
+                .map((p) => p.id)
+                .filter((id) => id !== userId)[0],
+              text: comment || "[файл]",
+            })
+          );
           replyToId = null;
           renderReplyPreview(null);
-          fileModalOverlay.style.display = 'none';
-          await loadMessages();
-        } catch (err) {
-          alert('Не удалось отправить файл');
-          console.error(err);
+          fileModalOverlay.style.display = "none";
+          await load();
+        } catch (e) {
+          alert("Не удалось отправить файл");
         }
       });
+
+      // Первичная загрузка и интервалы
+      await load();
+      setInterval(load, 1000);
+      setInterval(updateStatus, 5000);
     })();
   </script>
 </body>
