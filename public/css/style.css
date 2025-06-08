@@ -28,14 +28,12 @@ html, body {
    (index.html — список чатов)
    =========================== */
 
-/* Список чатов */
 .chat-list {
   flex: 1 1 auto;
   overflow-y: auto;
   padding-bottom: 100px; /* запас снизу */
 }
 
-/* Элемент списка чата */
 .chat-item {
   display: flex;
   align-items: center;
@@ -47,8 +45,6 @@ html, body {
 .chat-item:hover {
   background-color: #1f1f1f;
 }
-
-/* Аватарка в списке чатов */
 .chat-item .avatar {
   width: 44px;
   height: 44px;
@@ -57,17 +53,13 @@ html, body {
   margin-right: 14px;
   flex-shrink: 0;
 }
-
-/* Инфо (название, статус) */
 .chat-item .info {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-
-/* Название чата */
-.chat-item .info .title {
+.chat-item .title {
   font-size: 16px;
   font-weight: 500;
   color: #e0e0e0;
@@ -75,20 +67,18 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* Статус и непрочитанные */
-.chat-item .info .subtitle {
+.chat-item .subtitle {
   font-size: 12px;
   color: #aaa;
   display: flex;
   align-items: center;
   margin-top: 4px;
 }
-.chat-item .info .subtitle .status {
+.chat-item .status {
   margin-right: 8px;
   white-space: nowrap;
 }
-.chat-item .info .subtitle .unread {
+.chat-item .unread {
   background-color: #e53935;
   color: #fff;
   border-radius: 10px;
@@ -97,11 +87,10 @@ html, body {
   margin-left: auto;
   flex-shrink: 0;
 }
-
-/* Кнопка «Подробнее» */
-.details-btn {
+.chat-item .actions {
   margin-top: 8px;
-  align-self: flex-start;
+}
+.chat-item .actions button {
   background: none;
   border: 1px solid #5393ff;
   border-radius: 4px;
@@ -109,9 +98,11 @@ html, body {
   padding: 4px 8px;
   font-size: 12px;
   cursor: pointer;
+  margin-right: 4px;
+  transition: background-color 0.2s;
 }
-.details-btn:hover {
-  background-color: rgba(83,147,255,0.1);
+.chat-item .actions button:hover {
+  background-color: rgba(83, 147, 255, 0.1);
 }
 
 /* ===========================
@@ -119,16 +110,14 @@ html, body {
    (chat.html — переписка)
    =========================== */
 
-/* Контейнер .messages */
 .messages {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 16px 20px;
-  padding-bottom: 160px;
+  padding-bottom: 160px; /* чтобы панель ввода не перекрывала */
   position: relative;
 }
 
-/* Отдельное сообщение */
 .message {
   margin-bottom: 16px;
   display: flex;
@@ -141,9 +130,7 @@ html, body {
 .message.you {
   align-items: flex-start;
 }
-
-/* Пузырёк сообщения */
-.message .bubble {
+.bubble {
   position: relative;
   max-width: 75%;
   padding: 10px 14px;
@@ -152,24 +139,19 @@ html, body {
   color: #f0f0f0;
   font-size: 15px;
   line-height: 1.4;
-  word-wrap: break-word;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 .message.me .bubble {
   background-color: #2979ff;
   color: #fff;
 }
-
-/* Мета-информация */
-.message .meta {
+.meta {
   font-size: 11px;
   color: #888;
   margin-top: 6px;
 }
-
-/* Иконка reply */
-.message .replyIcon {
+.replyIcon {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -180,13 +162,11 @@ html, body {
   border-radius: 4px;
   transition: color 0.2s, background-color 0.2s;
 }
-.message .replyIcon:hover {
+.replyIcon:hover {
   color: #fff;
   background-color: rgba(255,255,255,0.1);
 }
-
-/* Линк на файл */
-.message .fileLink {
+.fileLink {
   display: flex;
   align-items: center;
   color: #80cfff;
@@ -194,19 +174,15 @@ html, body {
   font-size: 15px;
   margin-top: 4px;
 }
-.message .fileLink:hover {
+.fileLink:hover {
   text-decoration: underline;
 }
-
-/* Комментарий к файлу */
-.message .fileComment {
+.fileComment {
   margin-top: 4px;
   font-size: 13px;
   color: #ccc;
 }
-
-/* Ответ на сообщение */
-.message .replyTo {
+.replyTo {
   font-size: 13px;
   color: #ccc;
   margin-bottom: 6px;
@@ -221,7 +197,7 @@ html, body {
 }
 
 /* Кнопка прокрутки вниз */
-#scrollToBottomBtn {
+.scroll-btn {
   position: fixed;
   right: 24px;
   bottom: 110px;
@@ -240,16 +216,16 @@ html, body {
   z-index: 10;
   transition: background-color 0.2s, transform 0.1s;
 }
-#scrollToBottomBtn:hover {
+.scroll-btn:hover {
   background-color: #5393ff;
   transform: translateY(-2px);
 }
-#scrollToBottomBtn:active {
+.scroll-btn:active {
   transform: translateY(0);
 }
 
-/* Модалка для файла */
-#fileModalOverlay {
+/* Модалки */
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -261,7 +237,7 @@ html, body {
   align-items: center;
   z-index: 30;
 }
-#fileModalOverlay > div {
+.modal {
   background-color: #1e1e1e;
   padding: 20px 24px;
   border-radius: 10px;
@@ -269,17 +245,14 @@ html, body {
   max-width: 360px;
   box-shadow: 0 6px 16px rgba(0,0,0,0.5);
 }
-#fileModalOverlay h3 {
+.modal h3 {
   color: #f0f0f0;
   margin-bottom: 12px;
   font-size: 18px;
 }
-#fileModalOverlay input[type="file"] {
-  display: block;
-  margin-bottom: 12px;
-  color: #f0f0f0;
-}
-#fileModalOverlay textarea {
+.modal input[type="file"],
+.modal input[type="text"],
+.modal textarea {
   width: 100%;
   padding: 10px 12px;
   background-color: #2a2a2a;
@@ -287,14 +260,17 @@ html, body {
   font-size: 14px;
   border: none;
   border-radius: 8px;
-  min-height: 60px;
-  resize: none;
   margin-bottom: 12px;
 }
-#fileModalOverlay textarea::placeholder {
+.modal textarea {
+  min-height: 60px;
+  resize: none;
+}
+.modal textarea::placeholder,
+.modal input::placeholder {
   color: #888;
 }
-#fileModalOverlay button {
+.modal button {
   width: 100%;
   padding: 10px 0;
   margin-top: 8px;
@@ -306,17 +282,19 @@ html, body {
   cursor: pointer;
   transition: background-color 0.2s;
 }
-#sendFileWithCommentBtn {
-  background-color: #2979ff;
-}
-#sendFileWithCommentBtn:hover {
-  background-color: #5393ff;
-}
-#cancelFileBtn {
+.modal .cancel-btn {
   background-color: #444;
 }
-#cancelFileBtn:hover {
+.modal .cancel-btn:hover {
   background-color: #555;
+}
+#sendFileWithCommentBtn,
+#addParticipantConfirmBtn {
+  background-color: #2979ff;
+}
+#sendFileWithCommentBtn:hover,
+#addParticipantConfirmBtn:hover {
+  background-color: #5393ff;
 }
 
 /* Панель ввода */
@@ -330,7 +308,7 @@ html, body {
   padding: 10px 16px;
   background-color: #1a1a1a;
   border-top: 1px solid #333;
-  flex: 0 0 auto;
+  z-index: 20;
 }
 .input-bar textarea {
   flex: 1;
@@ -344,6 +322,7 @@ html, body {
   resize: none;
   max-height: 100px;
   overflow-y: auto;
+  pointer-events: auto;  /* гарантируем активность */
 }
 .input-bar textarea::placeholder {
   color: #888;
@@ -385,6 +364,25 @@ html, body {
   transform: translateY(0);
 }
 
+/* Кнопка «Назад» и заголовок */
+.back-btn {
+  font-size: 24px;
+  cursor: pointer;
+  margin-right: 12px;
+}
+.header-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.header-btn {
+  background: none;
+  border: none;
+  color: #5393ff;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 8px;
+}
 /* Адаптация под узкие экраны */
 @media (max-width: 480px) {
   header { padding: 12px; }
