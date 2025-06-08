@@ -1,127 +1,79 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Чаты</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <meta charset="UTF-8">
+  <meta 
+    name="viewport" 
+    content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"
+  >
+  <title>Список чатов</title>
+  <link rel="stylesheet" href="css/style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header>
-    <div id="chatTitle">Чаты</div>
+  <header class="header">
+    <h1 class="header__title">Мои чаты</h1>
   </header>
-
-  <div class="chat-list" id="chatList"></div>
-
-  <button id="newChatBtn">＋</button>
-
-  <div id="modalOverlay">
-    <div id="modal">
-      <h3>Новый чат</h3>
-      <input type="text" id="newUserId" placeholder="Введите ID пользователя" />
-      <button id="createChatBtn">Создать</button>
-      <button id="closeModalBtn">Отмена</button>
+  <main class="main">
+    <div id="chatList" class="chat-list">
+      <!-- здесь появятся chat-item -->
     </div>
-  </div>
+  </main>
 
   <script>
     Telegram.WebApp.ready();
-
-    (function() {
-      const initData = Telegram.WebApp.initDataUnsafe || {};
-      const user = initData.user;
+    (async () => {
+      const user = Telegram.WebApp.initDataUnsafe.user;
       if (!user) {
-        document.getElementById('chatList').innerHTML =
-          '<p style="padding:12px;">Не удалось получить ID пользователя.</p>';
+        document.getElementById('chatList').innerHTML = '<p class="center">Ошибка инициализации</p>';
         return;
       }
-      const userId = String(user.id);
-
-      const chatListEl   = document.getElementById('chatList');
-      const newBtn       = document.getElementById('newChatBtn');
-      const modalOverlay = document.getElementById('modalOverlay');
-      const closeModal   = document.getElementById('closeModalBtn');
-      const createChatBtn= document.getElementById('createChatBtn');
-      const newUserInput = document.getElementById('newUserId');
-
-      async function loadChats() {
-        try {
-          const res = await fetch(`/api/chats?userId=${encodeURIComponent(userId)}`);
-          if (!res.ok) throw new Error('Не удалось получить чаты');
-          const chats = await res.json();
-          chatListEl.innerHTML = '';
-          if (chats.length === 0) {
-            chatListEl.innerHTML = '<p style="padding:12px;">Чатов нет.</p>';
-            return;
-          }
-          chats.forEach(chat => {
-            const div = document.createElement('div');
-            div.className = 'chat-item';
-            div.onclick = () => openChat(chat.chatId);
-
-            const onlineColor = chat.online ? '#0f0' : '#888';
-            const statusText  = chat.online ? 'онлайн' : 'офлайн';
-            const unreadHTML  = chat.unreadCount > 0
-              ? `<span class="unread">${chat.unreadCount}</span>`
-              : '';
-
-            div.innerHTML = `
-              <div class="avatar"></div>
-              <div class="info">
-                <div class="title">${chat.title}</div>
-                <div class="subtitle">
-                  <span class="status" style="color:${onlineColor}">${statusText}</span>
-                  ${unreadHTML}
-                </div>
+      try {
+        const res = await fetch(`/api/chats?userId=${user.id}`);
+        const chats = await res.json();
+        const container = document.getElementById('chatList');
+        if (!chats.length) {
+          container.innerHTML = '<p class="center">У вас пока нет чатов</p>';
+          return;
+        }
+        chats.forEach(c => {
+          const item = document.createElement('div');
+          item.className = 'chat-item';
+          item.innerHTML = `
+            <div class="chat-item__left">
+              <div class="chat-item__avatar">${c.title.charAt(0)}</div>
+            </div>
+            <div class="chat-item__body">
+              <div class="chat-item__title">${c.title}</div>
+              <div class="chat-item__meta">
+                <span class="chat-item__role">${c.role}</span>
+                <span class="chat-item__unread">${c.unreadCount}</span>
               </div>
-            `;
-            chatListEl.appendChild(div);
-          });
-        } catch (err) {
-          chatListEl.innerHTML = `<p style="padding:12px;">Ошибка: ${err.message}</p>`;
-        }
+            </div>
+            <div class="chat-item__actions">
+              <button class="btn open">Открыть</button>
+              <button class="btn details">Подробнее</button>
+            </div>
+          `;
+          // Открыть переписку
+          item.querySelector('.open').onclick = () => {
+            Telegram.WebApp.openLink(`chat.html?chatId=${c.chatId}`);
+          };
+          // Подробнее по заявке
+          item.querySelector('.details').onclick = async () => {
+            const det = await fetch(`/api/chat/${c.chatId}/details`).then(r => r.json());
+            // простая модалка через alert
+            alert(
+              'Детали заявки:\n' +
+              JSON.stringify(det, null, 2)
+            );
+          };
+          container.appendChild(item);
+        });
+      } catch (e) {
+        console.error(e);
+        document.getElementById('chatList').innerHTML = '<p class="center">Ошибка загрузки чатов</p>';
       }
-
-      function openChat(chatId) {
-        window.location.href = `chat.html?chatId=${encodeURIComponent(chatId)}`;
-      }
-
-      newBtn.onclick = () => {
-        newUserInput.value = '';
-        modalOverlay.style.display = 'flex';
-      };
-      closeModal.onclick = () => {
-        modalOverlay.style.display = 'none';
-      };
-
-      createChatBtn.onclick = async () => {
-        const toId = newUserInput.value.trim();
-        if (!toId) {
-          alert('Введите ID пользователя');
-          return;
-        }
-        if (toId === userId) {
-          alert('Нельзя создать чат с самим собой');
-          return;
-        }
-        try {
-          const res = await fetch('/api/create-chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: userId, to: toId })
-          });
-          if (!res.ok) throw new Error('Не удалось создать чат');
-          const data = await res.json();
-          modalOverlay.style.display = 'none';
-          openChat(data.chatId);
-        } catch (err) {
-          alert('Ошибка: ' + err.message);
-        }
-      };
-
-      loadChats();
-      setInterval(loadChats, 5000);
     })();
   </script>
 </body>
