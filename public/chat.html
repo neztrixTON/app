@@ -75,7 +75,7 @@
       }
       const userId = String(user.id);
 
-      // DOM elements
+      // DOM элементы
       const backBtn = document.getElementById('backBtn');
       const chatTitleEl = document.getElementById('chatTitle');
       const statusEl = document.getElementById('status');
@@ -96,7 +96,7 @@
       const sendBtn = document.getElementById('sendBtn');
       const sendFileBtn = document.getElementById('sendFileBtn');
 
-      let meta = {}, replyToId = null;
+      let meta = { participants: [] }, replyToId = null;
 
       backBtn.onclick = () => location.href = 'index.html';
       detailsBtn.onclick = () => {
@@ -107,6 +107,7 @@
           `Дата: ${meta.createdAt}`
         );
       };
+
       addParticipantBtn.onclick = () => {
         newParticipantInput.value = '';
         participantModalOverlay.style.display = 'flex';
@@ -122,7 +123,7 @@
           const res = await fetch('/api/add-to-chat', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({chatId, userId: uid, role: roleArr.join(' ')})
+            body: JSON.stringify({ chatId, userId: uid, role: roleArr.join(' ') })
           });
           if (!res.ok) throw '';
           alert('Участник добавлен');
@@ -134,14 +135,15 @@
       };
 
       async function updateStatus() {
-        const other = meta.participants?.find(p=>p.id!==userId)?.id;
+        const parts = Array.isArray(meta.participants) ? meta.participants : [];
+        const other = parts.find(p => p.id !== userId)?.id;
         if (!other) return;
         try {
           const r = await fetch(`/api/status?userId=${other}`);
           const j = await r.json();
           statusEl.textContent = j.online ? 'онлайн' : 'офлайн';
           statusEl.style.color = j.online ? '#7CFC00' : '#888';
-        } catch{}
+        } catch {}
       }
 
       async function load() {
@@ -149,25 +151,31 @@
           const res = await fetch(`/api/messages?chatId=${chatId}&userId=${userId}`);
           const body = await res.json();
           const msgs = body.messages;
-          meta = body.meta;
+          meta = body.meta || { participants: [] };
 
-          chatTitleEl.textContent = `Заявка #${meta.requestId}`;
-          if (body.meta.isAdmin) addParticipantBtn.style.display = 'inline-block';
+          // Участники и другие переменные
+          const parts = Array.isArray(meta.participants) ? meta.participants : [];
+          const otherId = parts.find(p => p.id !== userId)?.id;
+          chatTitleEl.textContent = `Заявка #${meta.requestId||'?'}`;
+          if (meta.isAdmin) addParticipantBtn.style.display = 'inline-block';
 
           const wasAtBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 50;
           msgContainer.innerHTML = '';
+
           msgs.forEach(m => {
             const div = document.createElement('div');
             div.className = 'message ' + (m.from===userId?'me':'you');
+
             if (m.replyTo) {
-              const replied = msgs.find(x=>x.id===m.replyTo);
-              if (replied) {
-                const r = document.createElement('div');
-                r.className = 'replyTo';
-                r.textContent = replied.text ? replied.text : '[файл]';
-                div.appendChild(r);
+              const rep = msgs.find(x=>x.id===m.replyTo);
+              if (rep) {
+                const rdiv = document.createElement('div');
+                rdiv.className = 'replyTo';
+                rdiv.textContent = rep.text ? rep.text : '[файл]';
+                div.appendChild(rdiv);
               }
             }
+
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
             if (m.text && !m.file) bubble.textContent = m.text;
@@ -179,39 +187,45 @@
               link.target = '_blank';
               bubble.appendChild(link);
               if (m.text) {
-                const com = document.createElement('div');
-                com.className = 'fileComment';
-                com.textContent = m.text;
-                bubble.appendChild(com);
+                const c = document.createElement('div');
+                c.className = 'fileComment';
+                c.textContent = m.text;
+                bubble.appendChild(c);
               }
             }
-            const replyIcon = document.createElement('span');
-            replyIcon.className = 'replyIcon';
-            replyIcon.textContent = '↩';
-            replyIcon.onclick = e => {
+
+            const repIcon = document.createElement('span');
+            repIcon.className = 'replyIcon';
+            repIcon.textContent = '↩';
+            repIcon.onclick = e => {
               e.stopPropagation();
               replyToId = m.id;
-              renderReplyPreview(m.text|| (m.file?'[файл]':''));
+              renderReplyPreview(m.text || (m.file?'[файл]':''));
             };
-            bubble.appendChild(replyIcon);
+            bubble.appendChild(repIcon);
+
             div.appendChild(bubble);
+
             const md = document.createElement('div');
             md.className = 'meta';
             const dt = new Date(m.ts);
-            md.textContent = (m.from===userId?'Вы':'Соб.') + ` • ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+            md.textContent = (m.from===userId?'Вы':'Собеседник') +
+              ` • ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
             div.appendChild(md);
+
             msgContainer.appendChild(div);
           });
+
           if (wasAtBottom) {
             msgContainer.scrollTop = msgContainer.scrollHeight;
             scrollBtn.style.display = 'none';
           }
-        } catch(e){
+        } catch(e) {
           console.error(e);
         }
       }
 
-      function renderReplyPreview(text){
+      function renderReplyPreview(text) {
         const ex = document.getElementById('replyPreview');
         if (ex) ex.remove();
         if (!text) return;
@@ -222,13 +236,13 @@
         document.body.insertBefore(d, document.querySelector('.input-bar'));
       }
 
-      function autoResize(){
+      function autoResize() {
         inputEl.style.height = 'auto';
         inputEl.style.height = inputEl.scrollHeight + 'px';
       }
 
       msgContainer.onscroll = () => {
-        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop+msgContainer.clientHeight);
+        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
         scrollBtn.style.display = dist>50?'flex':'none';
       };
       scrollBtn.onclick = () => {
@@ -245,57 +259,58 @@
         if (!text) return;
         sendBtn.disabled = true;
         try {
-          await fetch('/api/messages/send',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-              chatId, from:userId,
-              to: meta.participants.find(p=>p.id!==userId).id,
-              text, replyTo:replyToId
-            })
+          // определяем otherId
+          const parts = Array.isArray(meta.participants) ? meta.participants : [];
+          const otherId = parts.find(p => p.id !== userId)?.id;
+          await fetch('/api/messages/send', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ chatId, from: userId, to: otherId, text, replyTo: replyToId })
           });
           Telegram.WebApp.sendData(JSON.stringify({
-            type:'message', chatId, from:userId,
-            to: meta.participants.map(p=>p.id).filter(id=>id!==userId)[0],
-            text
+            type: 'message',
+            chatId, from: userId, to: otherId, text
           }));
           replyToId = null;
           renderReplyPreview(null);
           inputEl.value = '';
           autoResize();
           await load();
-        } catch(e){
-          alert('Ошибка: '+e.message);
+        } catch(e) {
+          alert('Ошибка: ' + e.message);
         } finally {
           sendBtn.disabled = !inputEl.value.trim();
         }
       };
 
-      sendFileBtn.onclick = () =>{
+      sendFileBtn.onclick = () => {
         modalFileInput.value = '';
         fileCommentInput.value = '';
         fileModalOverlay.style.display = 'flex';
       };
-      cancelFileBtn.onclick = () =>{
+      cancelFileBtn.onclick = () => {
         fileModalOverlay.style.display = 'none';
       };
       sendFileWithCommentBtn.onclick = async () => {
         if (!modalFileInput.files.length) return alert('Выберите файл');
         const file = modalFileInput.files[0];
         const comment = fileCommentInput.value.trim();
+        const parts = Array.isArray(meta.participants) ? meta.participants : [];
+        const otherId = parts.find(p => p.id !== userId)?.id;
         const form = new FormData();
         form.append('file', file);
         form.append('chatId', chatId);
         form.append('from', userId);
-        form.append('to', meta.participants.find(p=>p.id!==userId).id);
+        form.append('to', otherId);
         if (replyToId) form.append('replyTo', replyToId);
         if (comment) form.append('text', comment);
+
         try {
-          await fetch('/api/messages/send-file',{method:'POST', body:form});
+          await fetch('/api/messages/send-file',{ method:'POST', body: form });
           Telegram.WebApp.sendData(JSON.stringify({
-            type:'message', chatId, from:userId,
-            to: meta.participants.map(p=>p.id).filter(id=>id!==userId)[0],
-            text: comment||'[файл]'
+            type:'message',
+            chatId, from: userId, to: otherId,
+            text: comment || '[файл]'
           }));
           replyToId = null;
           renderReplyPreview(null);
@@ -307,8 +322,8 @@
       };
 
       await load();
-      setInterval(load,1000);
-      setInterval(updateStatus,5000);
+      setInterval(load, 1000);
+      setInterval(updateStatus, 5000);
     })();
   </script>
 </body>
