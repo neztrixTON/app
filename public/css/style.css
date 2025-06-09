@@ -221,7 +221,7 @@ header {
   position: absolute;
   top: 6px;
   right: 6px;
-  font-size: 16px;
+  font-size: 0px;
   color: #bbb;
   cursor: pointer;
   padding: 4px;
@@ -524,7 +524,7 @@ header {
     font-size: 14px;
   }
   .replyIcon {
-    font-size: 14px; top: 4px; right: 4px;
+    font-size: 0px; top: 0px; right: 0px;
   }
   .meta {
     font-size: 10px;
