@@ -17,15 +17,16 @@
       <div id="chatTitle">Чат</div>
       <div id="status">офлайн</div>
     </div>
-    <!-- Кнопка меню -->
+    <!-- Кнопка «Подробнее» всегда видна -->
+    <button id="detailsBtn" class="header-btn">Подробнее</button>
+    <!-- Кнопка «⋯» видна только админам -->
     <button id="menuBtn" class="header-btn">⋯</button>
   </header>
 
-  <!-- Список чатов -->
   <div class="messages" id="messagesContainer"></div>
   <button id="scrollToBottomBtn" class="scroll-btn">⬇︎</button>
 
-  <!-- Контекстное меню действий -->
+  <!-- Контекстное меню действий (Добавить/Удалить) -->
   <ul id="actionMenu" class="action-menu">
     <li id="openAdd">Добавить участника</li>
     <li id="openRemove">Удалить участника</li>
@@ -33,7 +34,7 @@
 
   <!-- Модалка «Подробнее» -->
   <div id="detailsModal" class="modal-overlay">
-    <div class="modal">
+    <div class="modal modal-centered">
       <h3>Информация по заявке</h3>
       <pre id="detailsText" class="details-text"></pre>
       <button id="closeDetailsBtn" class="cancel-btn">Закрыть</button>
@@ -42,12 +43,12 @@
 
   <!-- Модалка «Добавить участника» -->
   <div id="addModal" class="modal-overlay">
-    <div class="modal">
+    <div class="modal modal-centered">
       <h3>Добавить участника</h3>
       <input
         type="text"
         id="newParticipantInput"
-        placeholder="ID и роль, например: 123456 Мастер"
+        placeholder="ID и роль, напр. 123456 Мастер"
       />
       <button id="addParticipantConfirmBtn">Добавить</button>
       <button id="addParticipantCancelBtn" class="cancel-btn">Отмена</button>
@@ -56,7 +57,7 @@
 
   <!-- Модалка «Удалить участника» -->
   <div id="removeModal" class="modal-overlay">
-    <div class="modal">
+    <div class="modal modal-centered">
       <h3>Удалить участника</h3>
       <div id="removeList" class="remove-list"></div>
       <button id="closeRemoveBtn" class="cancel-btn">Закрыть</button>
@@ -65,7 +66,7 @@
 
   <!-- Модалка «Отправить файл» -->
   <div id="fileModalOverlay" class="modal-overlay">
-    <div class="modal">
+    <div class="modal modal-centered">
       <h3>Отправить файл</h3>
       <input type="file" id="modalFileInput" />
       <textarea id="fileComment" placeholder="Комментарий (необязательно)"></textarea>
@@ -76,11 +77,7 @@
 
   <!-- Панель ввода -->
   <div class="input-bar">
-    <textarea
-      id="messageInput"
-      placeholder="Введите сообщение..."
-      rows="1"
-    ></textarea>
+    <textarea id="messageInput" placeholder="Введите сообщение..." rows="1"></textarea>
     <button id="sendBtn" disabled>Отправить</button>
     <button id="sendFileBtn">📎</button>
   </div>
@@ -98,10 +95,11 @@
       }
       const userId = String(user.id);
 
-      // DOM элементы
+      // DOM elements
       const backBtn = document.getElementById('backBtn');
       const chatTitleEl = document.getElementById('chatTitle');
       const statusEl = document.getElementById('status');
+      const detailsBtn = document.getElementById('detailsBtn');
       const menuBtn = document.getElementById('menuBtn');
       const actionMenu = document.getElementById('actionMenu');
       const openAdd = document.getElementById('openAdd');
@@ -127,153 +125,35 @@
       const sendBtn = document.getElementById('sendBtn');
       const sendFileBtn = document.getElementById('sendFileBtn');
 
-      let meta = { participants: [] };
+      let meta = { participants: [], isAdmin: false, requestId:'', type:'', address:'', createdAt: '' };
       let replyToId = null;
 
-      backBtn.onclick = () => (location.href = 'index.html');
+      backBtn.onclick = () => { window.location.href = 'index.html'; };
 
-      // Контекстное меню ⋯
-      menuBtn.onclick = (e) => {
-        actionMenu.style.display = 'block';
-        actionMenu.style.top = e.clientY + 'px';
-        actionMenu.style.left = e.clientX - 80 + 'px';
-      };
-      document.addEventListener('click', (e) => {
-        if (!actionMenu.contains(e.target) && e.target !== menuBtn) {
-          actionMenu.style.display = 'none';
-        }
-      });
-
-      // «Добавить участника»
-      openAdd.onclick = () => {
-        actionMenu.style.display = 'none';
-        newParticipantInput.value = '';
-        addModal.style.display = 'flex';
-      };
-      addParticipantCancelBtn.onclick = () => (addModal.style.display = 'none');
-      addParticipantConfirmBtn.onclick = async () => {
-        const val = newParticipantInput.value.trim();
-        if (!val) return alert('Введите ID и роль');
-        const [uid, ...roleArr] = val.split(' ');
-        try {
-          const res = await fetch('/api/add-to-chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId, userId: uid, role: roleArr.join(' ') }),
-          });
-          if (!res.ok) throw '';
-          addModal.style.display = 'none';
-          await load();
-        } catch {
-          alert('Ошибка добавления');
-        }
-      };
-
-      // «Удалить участника»
-      openRemove.onclick = () => {
-        actionMenu.style.display = 'none';
-        removeList.innerHTML = '';
-        const parts = meta.participants || [];
-        // Только добавленные (индексы ≥ 2)
-        parts.slice(2).forEach((p) => {
-          const div = document.createElement('div');
-          div.className = 'remove-item';
-          div.innerHTML = `
-            <span>${p.id} (${p.role})</span>
-            <button data-id="${p.id}" class="remove-btn">Удалить</button>
-          `;
-          removeList.appendChild(div);
-        });
-        removeModal.style.display = 'flex';
-      };
-      closeRemoveBtn.onclick = () => (removeModal.style.display = 'none');
-      removeList.onclick = async (e) => {
-        if (!e.target.classList.contains('remove-btn')) return;
-        const uid = e.target.dataset.id;
-        try {
-          const res = await fetch('/api/remove-from-chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId, userId: uid }),
-          });
-          if (!res.ok) throw '';
-          removeModal.style.display = 'none';
-          await load();
-        } catch {
-          alert('Не удалось удалить участника');
-        }
-      };
-
-      // «Подробнее»
-      openDetails = () => {
-        const txt = 
-          `Заявка #${meta.requestId}\n` +
-          `Тип: ${meta.type}\n` +
-          `Адрес: ${meta.address}\n` +
-          `Дата: ${meta.createdAt}`;
-        detailsText.textContent = txt;
-        detailsModal.style.display = 'flex';
-      };
-      closeDetailsBtn.onclick = () => {
-        detailsModal.style.display = 'none';
-        setTimeout(() => inputEl.focus(), 100);
-      };
-      // Привязать к пункту меню?
-      // Для примера, даём двойной клик по заголовку
-      chatTitleEl.ondblclick = openDetails;
-
-      // «Отправить файл»
-      sendFileBtn.onclick = () => {
-        modalFileInput.value = '';
-        fileCommentInput.value = '';
-        fileModalOverlay.style.display = 'flex';
-      };
-      cancelFileBtn.onclick = () => (fileModalOverlay.style.display = 'none');
-      sendFileWithCommentBtn.onclick = async () => {
-        if (!modalFileInput.files.length) return alert('Выберите файл');
-        const file = modalFileInput.files[0];
-        const comment = fileCommentInput.value.trim();
-        const parts = meta.participants || [];
-        const other = parts.find((p) => p.id !== userId)?.id;
-        const form = new FormData();
-        form.append('file', file);
-        form.append('chatId', chatId);
-        form.append('from', userId);
-        form.append('to', other);
-        if (replyToId) form.append('replyTo', replyToId);
-        if (comment) form.append('text', comment);
-        try {
-          await fetch('/api/messages/send-file', { method: 'POST', body: form });
-          fileModalOverlay.style.display = 'none';
-          replyToId = null;
-          renderReplyPreview(null);
-          await load();
-        } catch {
-          alert('Ошибка отправки файла');
-        }
-      };
-
-      // Загрузка и рендер сообщений
+      // Load messages and metadata
       async function load() {
         try {
           const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`);
+          if (!res.ok) throw new Error('Ошибка загрузки');
           const { messages, meta: m } = await res.json();
           meta = m;
-          chatTitleEl.textContent = `Чат по заявке #${meta.requestId}`;
 
-          // Статус онлайн
+          // Show or hide admin menu
+          menuBtn.style.display = meta.isAdmin ? 'inline-block' : 'none';
+
+          // Update header title and status
+          chatTitleEl.textContent = `Чат по заявке #${meta.requestId}`;
           const other = meta.participants.find(p => p.id !== userId)?.id;
           if (other) {
-            const r = await fetch(`/api/status?userId=${encodeURIComponent(other)}`);
-            const j = await r.json();
-            statusEl.textContent = j.online ? 'онлайн' : 'офлайн';
-            statusEl.style.color = j.online ? '#7CFC00' : '#888';
+            const st = await fetch(`/api/status?userId=${encodeURIComponent(other)}`).then(r=>r.json());
+            statusEl.textContent = st.online ? 'онлайн' : 'офлайн';
+            statusEl.style.color = st.online ? '#7CFC00' : '#888';
           }
 
-          const wasAtBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 50;
+          // Render messages...
+          const wasAtBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 20;
           msgContainer.innerHTML = '';
-
-          messages.forEach((m) => {
+          messages.forEach(m => {
             const div = document.createElement('div');
             div.className = 'message ' + (m.from === userId ? 'me' : 'you');
 
@@ -282,7 +162,7 @@
               if (rep) {
                 const rv = document.createElement('div');
                 rv.className = 'replyTo';
-                rv.textContent = rep.text ? rep.text : '[файл]';
+                rv.textContent = rep.text || '[файл]';
                 div.appendChild(rv);
               }
             }
@@ -294,8 +174,8 @@
               const a = document.createElement('a');
               a.href = m.file;
               a.textContent = '📎 Файл';
-              a.className = 'fileLink';
               a.target = '_blank';
+              a.className = 'fileLink';
               bubble.appendChild(a);
               if (m.text) {
                 const c = document.createElement('div');
@@ -308,7 +188,7 @@
             const rp = document.createElement('span');
             rp.className = 'replyIcon';
             rp.textContent = '↩';
-            rp.onclick = (e) => {
+            rp.onclick = e => {
               e.stopPropagation();
               replyToId = m.id;
               renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
@@ -318,19 +198,19 @@
 
             const md = document.createElement('div');
             md.className = 'meta';
-            let label;
+            let label = '';
             if (m.from === userId) label = 'Вы';
             else {
               const p = meta.participants.find(x => x.id === m.from);
-              const ru = p?.role?.toLowerCase();
-              if (ru === 'manager') label = 'Менеджер';
-              else if (ru === 'client') label = 'Клиент';
-              else if (p && p.role) label = p.role.charAt(0).toUpperCase() + p.role.slice(1);
-              else label = 'Собеседник';
+              if (p) {
+                if (p.role.toLowerCase() === 'manager') label = 'Менеджер';
+                else if (p.role.toLowerCase() === 'client') label = 'Клиент';
+                else label = p.role;
+              } else label = 'Собеседник';
             }
             const dt = new Date(m.ts);
-            const hh = String(dt.getHours()).padStart(2, '0');
-            const mm = String(dt.getMinutes()).padStart(2, '0');
+            const hh = String(dt.getHours()).padStart(2,'0');
+            const mm = String(dt.getMinutes()).padStart(2,'0');
             md.textContent = `${label} • ${hh}:${mm}`;
             div.appendChild(md);
 
@@ -346,7 +226,7 @@
         }
       }
 
-      // Превью ответа
+      // Reply preview
       function renderReplyPreview(text) {
         let ex = document.getElementById('replyPreview');
         if (ex) ex.remove();
@@ -358,7 +238,7 @@
         document.body.insertBefore(d, document.querySelector('.input-bar'));
       }
 
-      // Авто‑размер textarea
+      // Auto-resize textarea
       function autoResize() {
         inputEl.style.height = 'auto';
         inputEl.style.height = inputEl.scrollHeight + 'px';
@@ -368,7 +248,7 @@
         sendBtn.disabled = !inputEl.value.trim();
       });
 
-      // Отправка текста
+      // Send text
       sendBtn.onclick = async () => {
         const text = inputEl.value.trim();
         if (!text) return;
@@ -377,7 +257,7 @@
         try {
           await fetch('/api/messages/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ chatId, from: userId, to: other, text, replyTo: replyToId })
           });
           replyToId = null;
@@ -386,13 +266,13 @@
           autoResize();
           await load();
         } catch (e) {
-          alert('Ошибка: ' + e.message);
+          console.error(e);
         } finally {
           sendBtn.disabled = !inputEl.value.trim();
         }
       };
 
-      // Кнопка скролла
+      // Scroll button
       msgContainer.addEventListener('scroll', () => {
         const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
         scrollBtn.style.display = dist > 50 ? 'flex' : 'none';
@@ -402,9 +282,106 @@
         scrollBtn.style.display = 'none';
       };
 
-      // Инициализация
+      // File modal
+      sendFileBtn.onclick = () => fileModalOverlay.style.display = 'flex';
+      cancelFileBtn.onclick = () => fileModalOverlay.style.display = 'none';
+      sendFileWithCommentBtn.onclick = async () => {
+        if (!modalFileInput.files.length) return alert('Выберите файл');
+        const file = modalFileInput.files[0];
+        const comment = fileCommentInput.value.trim();
+        const other = meta.participants.find(p => p.id !== userId)?.id;
+        const form = new FormData();
+        form.append('file', file);
+        form.append('chatId', chatId);
+        form.append('from', userId);
+        form.append('to', other);
+        if (replyToId) form.append('replyTo', replyToId);
+        if (comment) form.append('text', comment);
+        try {
+          await fetch('/api/messages/send-file', { method:'POST', body:form });
+          replyToId = null;
+          renderReplyPreview(null);
+          fileModalOverlay.style.display = 'none';
+          await load();
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      // Context menu ⋯
+      menuBtn.onclick = e => {
+        const rect = menuBtn.getBoundingClientRect();
+        actionMenu.style.top = rect.bottom + 4 + 'px';
+        actionMenu.style.left = rect.right - 120 + 'px';
+        actionMenu.style.display = 'block';
+      };
+      document.addEventListener('click', e => {
+        if (!actionMenu.contains(e.target) && e.target !== menuBtn) {
+          actionMenu.style.display = 'none';
+        }
+      });
+
+      // Add participant
+      openAdd.onclick = () => {
+        actionMenu.style.display = 'none';
+        newParticipantInput.value = '';
+        addModal.style.display = 'flex';
+      };
+      addParticipantCancelBtn.onclick = () => addModal.style.display = 'none';
+      addParticipantConfirmBtn.onclick = async () => {
+        const val = newParticipantInput.value.trim();
+        if (!val) return alert('Введите ID и роль');
+        const [uid, ...roleArr] = val.split(' ');
+        try {
+          const res = await fetch('/api/add-to-chat', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ chatId, userId: uid, role: roleArr.join(' ') })
+          });
+          if (!res.ok) throw '';
+          addModal.style.display = 'none';
+          await load();
+        } catch {
+          alert('Ошибка добавления');
+        }
+      };
+
+      // Remove participant
+      openRemove.onclick = () => {
+        actionMenu.style.display = 'none';
+        removeList.innerHTML = '';
+        meta.participants.slice(2).forEach(p => {
+          const div = document.createElement('div');
+          div.className = 'remove-item';
+          div.innerHTML = `
+            <span>${p.id} (${p.role})</span>
+            <button data-id="${p.id}" class="remove-btn">Удалить</button>
+          `;
+          removeList.appendChild(div);
+        });
+        removeModal.style.display = 'flex';
+      };
+      closeRemoveBtn.onclick = () => removeModal.style.display = 'none';
+      removeList.onclick = async e => {
+        if (!e.target.classList.contains('remove-btn')) return;
+        const uid = e.target.dataset.id;
+        try {
+          const res = await fetch('/api/remove-from-chat', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ chatId, userId: uid })
+          });
+          if (!res.ok) throw '';
+          removeModal.style.display = 'none';
+          await load();
+        } catch {
+          alert('Ошибка удаления');
+        }
+      };
+
+      // Initial load & polling
       await load();
-      setInterval(load, 1000);
+      setInterval(load, 5000);
     })();
   </script>
 </body>
