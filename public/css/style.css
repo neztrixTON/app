@@ -1,22 +1,16 @@
 /* ========================================
-   FULL STYLE SHEET для index.html & chat.html
+   FULL STYLE SHEET (450+ строк) для index.html & chat.html
    ======================================== */
 
-/* ================================
-   Сброс базовых стилей
-   ================================ */
+/* =====================================================
+   1. Сброс базовых стилей
+   ===================================================== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-
-/* ================================
-   Общие стили
-   ================================ */
 html, body {
-  display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -26,18 +20,21 @@ html, body {
 }
 button, input, textarea {
   font-family: inherit;
+  outline: none;
 }
 
-/* ========================================
-   INDEX.HTML: Список чатов (chat-list)
-   ======================================== */
+/* =====================================================
+   2. index.html — стили списка чатов
+   ===================================================== */
 .chat-list {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 20px 0;
+  background-color: #0d0d0d;
 }
 .chat-list p {
   padding: 12px;
+  text-align: center;
   color: #888;
 }
 .chat-item {
@@ -65,26 +62,26 @@ button, input, textarea {
   flex-direction: column;
   overflow: hidden;
 }
-.chat-item .title {
+.chat-item .info .title {
   font-size: 16px;
   font-weight: 500;
   color: #e0e0e0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.chat-item .subtitle {
+.chat-item .info .subtitle {
   display: flex;
   align-items: center;
   font-size: 12px;
   color: #aaa;
   margin-top: 4px;
 }
-.chat-item .status {
+.chat-item .info .status {
   margin-right: 8px;
   white-space: nowrap;
 }
-.chat-item .subtitle .unread {
+.chat-item .info .unread {
   background-color: #e53935;
   color: #fff;
   border-radius: 10px;
@@ -110,9 +107,9 @@ button, input, textarea {
   background-color: rgba(83,147,255,0.1);
 }
 
-/* ========================================
-   CHAT.HTML: Header
-   ======================================== */
+/* =====================================================
+   3. Общие стили header для chat.html
+   ===================================================== */
 header {
   display: flex;
   align-items: center;
@@ -146,7 +143,7 @@ header {
   border: none;
   color: #5393ff;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 16px;
   margin-left: 8px;
   transition: color 0.2s;
 }
@@ -154,9 +151,9 @@ header {
   color: #81c0ff;
 }
 
-/* ========================================
-   CHAT.HTML: Контекстное меню (⋯)
-   ======================================== */
+/* =====================================================
+   4. Меню действий (⋯) для админов
+   ===================================================== */
 .action-menu {
   position: absolute;
   display: none;
@@ -178,9 +175,9 @@ header {
   background-color: #2a2a2a;
 }
 
-/* ========================================
-   CHAT.HTML: Список сообщений
-   ======================================== */
+/* =====================================================
+   5. Список сообщений (chat.html)
+   ===================================================== */
 .messages {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -197,7 +194,6 @@ header {
   margin-bottom: 16px;
   display: flex;
   flex-direction: column;
-  position: relative;
 }
 .message.me {
   align-items: flex-end;
@@ -265,9 +261,9 @@ header {
   color: #ccc;
 }
 
-/* ========================================
-   CHAT.HTML: Кнопка прокрутки вниз
-   ======================================== */
+/* =====================================================
+   6. Кнопка прокрутки вниз
+   ===================================================== */
 .scroll-btn {
   position: fixed;
   right: 24px;
@@ -279,11 +275,11 @@ header {
   border-radius: 50%;
   color: #fff;
   font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
   display: none;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
   z-index: 10;
   transition: background-color 0.2s, transform 0.1s;
 }
@@ -295,9 +291,9 @@ header {
   transform: translateY(0);
 }
 
-/* ========================================
-   CHAT.HTML: Панель ввода
-   ======================================== */
+/* =====================================================
+   7. Панель ввода
+   ===================================================== */
 .input-bar {
   position: fixed;
   bottom: 0;
@@ -322,12 +318,14 @@ header {
   resize: none;
   max-height: 100px;
   overflow-y: auto;
-  pointer-events: auto; /* всегда активно */
+  pointer-events: auto;
 }
 .input-bar textarea::placeholder {
   color: #888;
 }
 #sendBtn {
+  margin-left: 8px;
+  padding: 10px 16px;
   background-color: #2979ff;
   border: none;
   border-radius: 20px;
@@ -335,8 +333,6 @@ header {
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
-  padding: 10px 16px;
-  margin-left: 8px;
   transition: background-color 0.2s;
 }
 #sendBtn:disabled {
@@ -347,12 +343,13 @@ header {
   background-color: #5393ff;
 }
 #sendFileBtn {
-  background-color: #444;
-  font-size: 18px;
-  padding: 10px;
   margin-left: 8px;
+  padding: 10px;
+  background-color: #444;
   border: none;
   border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
   cursor: pointer;
   transition: background-color 0.2s, transform 0.1s;
 }
@@ -364,9 +361,9 @@ header {
   transform: translateY(0);
 }
 
-/* ========================================
-   Модальные окна (modal-overlay)
-   ======================================== */
+/* =====================================================
+   8. Общие стили для модалок
+   ===================================================== */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
@@ -379,10 +376,12 @@ header {
 }
 .modal {
   background-color: #1e1e1e;
-  padding: 20px 24px;
+  padding: 20px;
   border-radius: 10px;
   width: 90%;
   max-width: 360px;
+  max-height: 80%;
+  overflow-y: auto;
   box-shadow: 0 6px 16px rgba(0,0,0,0.5);
 }
 .modal h3 {
@@ -390,16 +389,15 @@ header {
   font-size: 18px;
   color: #f0f0f0;
 }
-.modal input[type="text"],
-.modal input[type="file"],
+.modal input,
 .modal textarea {
   width: 100%;
   margin-bottom: 12px;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 8px;
+  padding: 10px;
   background-color: #2a2a2a;
   color: #f0f0f0;
+  border: none;
+  border-radius: 8px;
   font-size: 14px;
 }
 .modal textarea {
@@ -422,14 +420,13 @@ header {
   cursor: pointer;
   transition: background-color 0.2s;
 }
-.modal .cancel-btn {
+.cancel-btn {
   background-color: #444;
 }
-.modal .cancel-btn:hover {
+.cancel-btn:hover {
   background-color: #555;
 }
-
-/* Кнопки подтверждения */
+/* Подтверждающие кнопки */
 #sendFileWithCommentBtn,
 #addParticipantConfirmBtn {
   background-color: #2979ff;
@@ -439,9 +436,9 @@ header {
   background-color: #5393ff;
 }
 
-/* ========================================
-   Модалка «Удалить участника»
-   ======================================== */
+/* =====================================================
+   9. Специальный модал “Удалить участника”
+   ===================================================== */
 .remove-list {
   max-height: 200px;
   overflow-y: auto;
@@ -466,50 +463,108 @@ header {
   background-color: #d32f2f;
 }
 
-/* ========================================
-   Модалка «Подробнее» (details)
-   ======================================== */
+/* =====================================================
+   10. Модал «Подробнее»
+   ===================================================== */
 .details-text {
   white-space: pre-wrap;
-  color: #f0f0f0;
-  margin-bottom: 12px;
   font-size: 14px;
+  margin-bottom: 12px;
   max-height: 150px;
   overflow-y: auto;
 }
 
-/* ========================================
-   Адаптив для мелких экранов
-   ======================================== */
+/* =====================================================
+   11. Ошибки
+   ===================================================== */
+.error {
+  padding: 12px;
+  text-align: center;
+  color: #e53935;
+}
+
+/* =====================================================
+   12. Адаптив для мелких экранов
+   ===================================================== */
 @media (max-width: 480px) {
-  /* index.html */
-  .chat-item .avatar { width: 38px; height: 38px; margin-right: 10px; }
-  .chat-item .title { font-size: 15px; }
-  .chat-item .subtitle { font-size: 11px; }
+  /* index */
+  .chat-item .avatar {
+    width: 38px; height: 38px; margin-right: 10px;
+  }
+  .chat-item .info .title {
+    font-size: 15px;
+  }
+  .chat-item .info .subtitle {
+    font-size: 11px;
+  }
 
   /* header */
-  .back-btn { font-size: 20px; }
-  .header-btn { font-size: 18px; margin-left: 6px; }
-  .header-info #chatTitle { font-size: 16px; }
-  .header-info #status { font-size: 10px; }
+  header {
+    padding: 10px 12px;
+  }
+  .back-btn {
+    font-size: 20px;
+  }
+  .header-btn {
+    font-size: 14px; margin-left: 6px;
+  }
+  #chatTitle {
+    font-size: 16px;
+  }
+  #status {
+    font-size: 10px;
+  }
 
   /* messages */
-  .messages { padding: 12px 16px; padding-bottom: 120px; }
-  .bubble { font-size: 14px; }
-  .meta { font-size: 10px; }
-  .replyIcon { font-size: 14px; top: 4px; right: 4px; }
+  .messages {
+    padding: 12px 16px;
+    padding-bottom: 120px;
+  }
+  .bubble {
+    font-size: 14px;
+  }
+  .replyIcon {
+    font-size: 14px; top: 4px; right: 4px;
+  }
+  .meta {
+    font-size: 10px;
+  }
 
-  /* scroll-btn */
-  .scroll-btn { bottom: 90px; width: 36px; height: 36px; font-size: 18px; }
+  /* scroll button */
+  .scroll-btn {
+    bottom: 90px; width: 36px; height: 36px; font-size: 18px;
+  }
 
   /* input bar */
-  .input-bar textarea { font-size: 14px; }
-  #sendBtn, #sendFileBtn { font-size: 14px; padding: 8px; }
+  .input-bar textarea {
+    font-size: 14px;
+  }
+  #sendBtn,
+  #sendFileBtn {
+    font-size: 14px;
+    padding: 8px;
+  }
 
   /* modals */
-  .modal { padding: 16px; }
-  .modal h3 { font-size: 16px; }
-  .modal input, .modal textarea { font-size: 13px; }
-  .modal button { font-size: 14px; }
-  .remove-btn { padding: 3px 6px; font-size: 12px; }
+  .modal {
+    width: 95%;
+    padding: 16px;
+  }
+  .modal h3 {
+    font-size: 16px;
+  }
+  .modal input,
+  .modal textarea {
+    font-size: 13px;
+  }
+  .modal button {
+    font-size: 14px;
+  }
+  .remove-item span {
+    font-size: 13px;
+  }
+  .remove-btn {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
 }
