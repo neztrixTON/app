@@ -1,6 +1,6 @@
 // server.js
 // =======================================
-// Express + Telegram Bot API notifications
+// Express-сервер + Telegram Bot API уведомления
 // =======================================
 
 const express    = require('express');
@@ -25,21 +25,21 @@ const TG_API    = `https://api.telegram.org/bot${BOT_TOKEN}`;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname,'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/files', express.static(UPLOAD_DIR));
 
-// Multer для загрузки файлов
+// Настройка multer для файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename:    (req, file, cb) => cb(null, Date.now() + '_' + file.originalname)
 });
 const upload = multer({ storage });
 
-// Простая JSON‑«БД»
+// Простая JSON-база
 let chatDB = { chats: {}, users: {}, admins: [] };
 if (fs.existsSync(DB_PATH)) {
   try {
-    chatDB = JSON.parse(fs.readFileSync(DB_PATH,'utf8'));
+    chatDB = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
   } catch (e) {
     console.error('Ошибка чтения DB:', e);
     saveDB();
@@ -60,25 +60,31 @@ function isOnline(uid) {
   return chatDB.users[uid] && (Date.now() - chatDB.users[uid] < 30000);
 }
 
-// Отправка пуша через Bot API
+// Отправка уведомления через Bot API
 async function notifyUser(to, text, chatId) {
   const chatUrl = `${process.env.WEBAPP_URL}/chat.html?chatId=${encodeURIComponent(chatId)}`;
-  await fetch(`${TG_API}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: to,
-      text,
-      reply_markup: {
-        inline_keyboard: [[
-          { text: 'Открыть чат', web_app: { url: chatUrl } }
-        ]]
-      }
-    })
-  });
+  try {
+    const res = await fetch(`${TG_API}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: to,
+        text,
+        reply_markup: {
+          inline_keyboard: [[
+            { text: 'Открыть чат', web_app: { url: chatUrl } }
+          ]]
+        }
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) console.error('Telegram API error:', json);
+  } catch (err) {
+    console.error('notifyUser error:', err);
+  }
 }
 
-// --- API ---
+// --- API Handlers ---
 
 // GET /api/chats
 app.get('/api/chats', (req, res) => {
@@ -87,7 +93,7 @@ app.get('/api/chats', (req, res) => {
   markOnline(userId);
 
   const isAdmin = chatDB.admins.includes(userId);
-  const out = [];
+  const result = [];
 
   for (const [chatId, chat] of Object.entries(chatDB.chats)) {
     const partIds = chat.participants.map(p => p.id);
@@ -96,10 +102,10 @@ app.get('/api/chats', (req, res) => {
     const unread = chat.messages.filter(m => m.to === userId && !m.read).length;
     const last    = chat.messages.slice(-1)[0] || {};
 
-    out.push({
+    result.push({
       chatId,
       title:       `Чат по заявке #${chat.meta.requestId}`,
-      online:      partIds.filter(id=>id!==userId).some(isOnline),
+      online:      partIds.filter(id => id !== userId).some(isOnline),
       unreadCount: unread,
       lastMessage: last.text || '[файл]',
       meta:        chat.meta,
@@ -107,7 +113,7 @@ app.get('/api/chats', (req, res) => {
     });
   }
 
-  res.json(out);
+  res.json(result);
 });
 
 // POST /api/create-chat
@@ -129,7 +135,6 @@ app.post('/api/create-chat', (req, res) => {
     saveDB();
   }
 
-  // Регистрируем админа, если не client
   if (role !== 'client' && !chatDB.admins.includes(String(from))) {
     chatDB.admins.push(String(from));
     saveDB();
@@ -144,11 +149,11 @@ app.post('/api/add-to-chat', (req, res) => {
   const chat = chatDB.chats[chatId];
   if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
-  if (!chat.participants.find(p=>p.id===String(userId))) {
+  if (!chat.participants.find(p => p.id === String(userId))) {
     chat.participants.push({ id: String(userId), role });
     saveDB();
   }
-  if (['manager','master','consultant'].includes(role.toLowerCase())) {
+  if (['manager', 'master', 'consultant'].includes(role.toLowerCase())) {
     if (!chatDB.admins.includes(String(userId))) {
       chatDB.admins.push(String(userId));
       saveDB();
@@ -174,10 +179,10 @@ app.post('/api/messages/send', async (req, res) => {
     replyTo: replyTo || null
   };
   chat.messages.push(msg);
-  chat.notified = false;  // сброс флага, чтобы можно было уведомить заново
+  chat.notified = false;
   saveDB();
 
-  // Оперативное уведомление
+  // Мгновенные уведомления
   for (const p of chat.participants) {
     if (p.id === String(from)) continue;
     const roleName = p.role === 'manager' ? 'Менеджер'
@@ -232,7 +237,6 @@ app.get('/api/messages', (req, res) => {
 
   markOnline(userId);
 
-  // Помечаем как прочитанные и сбрасываем notified
   chat.messages.forEach(m => { if (m.to === userId) m.read = true; });
   chat.notified = false;
   saveDB();
@@ -252,20 +256,18 @@ app.get('/api/status', (req, res) => {
   res.json({ online: isOnline(userId) });
 });
 
-// Автоматическая рассылка напоминаний о непрочитанных
+// Авто-напоминание о непрочитанных
 setInterval(async () => {
   for (const [chatId, chat] of Object.entries(chatDB.chats)) {
     if (chat.notified) continue;
-
     for (const p of chat.participants) {
-      const userId = p.id;
-      const hasUnread = chat.messages.some(m => m.to === userId && !m.read);
+      const hasUnread = chat.messages.some(m => m.to === p.id && !m.read);
       if (hasUnread) {
         const roleName = p.role === 'manager' ? 'Менеджер'
                        : p.role === 'client'  ? 'Клиент'
                        : p.role.charAt(0).toUpperCase() + p.role.slice(1);
         await notifyUser(
-          userId,
+          p.id,
           `🔔 У вас есть непрочитанные сообщения в чате по заявке #${chat.meta.requestId}`,
           chatId
         );
@@ -274,9 +276,9 @@ setInterval(async () => {
     chat.notified = true;
   }
   saveDB();
-}, 60 * 1000);  // каждые 60 секунд
+}, 60 * 1000);
 
-// Catch-all для SPA
+// SPA catch-all
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
