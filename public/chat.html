@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  <meta 
+    name="viewport" 
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" 
   />
   <title>Чат</title>
   <link rel="stylesheet" href="css/style.css" />
@@ -17,16 +17,13 @@
       <div id="chatTitle">Чат</div>
       <div id="status">офлайн</div>
     </div>
-    <!-- Кнопка «Подробнее» всегда видна -->
     <button id="detailsBtn" class="header-btn">Подробнее</button>
-    <!-- Кнопка «⋯» видна только админам -->
     <button id="menuBtn" class="header-btn">⋯</button>
   </header>
 
   <div class="messages" id="messagesContainer"></div>
   <button id="scrollToBottomBtn" class="scroll-btn">⬇︎</button>
 
-  <!-- Контекстное меню действий (Добавить/Удалить) -->
   <ul id="actionMenu" class="action-menu">
     <li id="openAdd">Добавить участника</li>
     <li id="openRemove">Удалить участника</li>
@@ -77,15 +74,20 @@
 
   <!-- Панель ввода -->
   <div class="input-bar">
-    <textarea id="messageInput" placeholder="Введите сообщение..." rows="1"></textarea>
+    <textarea 
+      id="messageInput" 
+      placeholder="Введите сообщение..." 
+      rows="1"
+    ></textarea>
     <button id="sendBtn" disabled>Отправить</button>
     <button id="sendFileBtn">📎</button>
   </div>
 
   <script>
     Telegram.WebApp.ready();
-    (async function() {
-      const params = new URLSearchParams(location.search);
+
+    (function() {
+      const params = new URLSearchParams(window.location.search);
       const chatId = params.get('chatId');
       const user = Telegram.WebApp.initDataUnsafe?.user;
       if (!user || !chatId) {
@@ -125,194 +127,39 @@
       const sendBtn = document.getElementById('sendBtn');
       const sendFileBtn = document.getElementById('sendFileBtn');
 
-      let meta = { participants: [], isAdmin: false, requestId:'', type:'', address:'', createdAt: '' };
+      let meta = {
+        participants: [],
+        isAdmin: false,
+        requestId: '',
+        type: '',
+        address: '',
+        createdAt: ''
+      };
       let replyToId = null;
 
-      backBtn.onclick = () => { window.location.href = 'index.html'; };
-
-      // Load messages and metadata
-      async function load() {
-        try {
-          const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`);
-          if (!res.ok) throw new Error('Ошибка загрузки');
-          const { messages, meta: m } = await res.json();
-          meta = m;
-
-          // Show or hide admin menu
-          menuBtn.style.display = meta.isAdmin ? 'inline-block' : 'none';
-
-          // Update header title and status
-          chatTitleEl.textContent = `Чат по заявке #${meta.requestId}`;
-          const other = meta.participants.find(p => p.id !== userId)?.id;
-          if (other) {
-            const st = await fetch(`/api/status?userId=${encodeURIComponent(other)}`).then(r=>r.json());
-            statusEl.textContent = st.online ? 'онлайн' : 'офлайн';
-            statusEl.style.color = st.online ? '#7CFC00' : '#888';
-          }
-
-          // Render messages...
-          const wasAtBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 20;
-          msgContainer.innerHTML = '';
-          messages.forEach(m => {
-            const div = document.createElement('div');
-            div.className = 'message ' + (m.from === userId ? 'me' : 'you');
-
-            if (m.replyTo) {
-              const rep = messages.find(x => x.id === m.replyTo);
-              if (rep) {
-                const rv = document.createElement('div');
-                rv.className = 'replyTo';
-                rv.textContent = rep.text || '[файл]';
-                div.appendChild(rv);
-              }
-            }
-
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble';
-            if (m.text && !m.file) bubble.textContent = m.text;
-            if (m.file) {
-              const a = document.createElement('a');
-              a.href = m.file;
-              a.textContent = '📎 Файл';
-              a.target = '_blank';
-              a.className = 'fileLink';
-              bubble.appendChild(a);
-              if (m.text) {
-                const c = document.createElement('div');
-                c.className = 'fileComment';
-                c.textContent = m.text;
-                bubble.appendChild(c);
-              }
-            }
-
-            const rp = document.createElement('span');
-            rp.className = 'replyIcon';
-            rp.textContent = '↩';
-            rp.onclick = e => {
-              e.stopPropagation();
-              replyToId = m.id;
-              renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
-            };
-            bubble.appendChild(rp);
-            div.appendChild(bubble);
-
-            const md = document.createElement('div');
-            md.className = 'meta';
-            let label = '';
-            if (m.from === userId) label = 'Вы';
-            else {
-              const p = meta.participants.find(x => x.id === m.from);
-              if (p) {
-                if (p.role.toLowerCase() === 'manager') label = 'Менеджер';
-                else if (p.role.toLowerCase() === 'client') label = 'Клиент';
-                else label = p.role;
-              } else label = 'Собеседник';
-            }
-            const dt = new Date(m.ts);
-            const hh = String(dt.getHours()).padStart(2,'0');
-            const mm = String(dt.getMinutes()).padStart(2,'0');
-            md.textContent = `${label} • ${hh}:${mm}`;
-            div.appendChild(md);
-
-            msgContainer.appendChild(div);
-          });
-
-          if (wasAtBottom) {
-            msgContainer.scrollTop = msgContainer.scrollHeight;
-            scrollBtn.style.display = 'none';
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      // Reply preview
-      function renderReplyPreview(text) {
-        let ex = document.getElementById('replyPreview');
-        if (ex) ex.remove();
-        if (!text) return;
-        const d = document.createElement('div');
-        d.id = 'replyPreview';
-        d.className = 'replyPreview';
-        d.textContent = `Ответ на: ${text}`;
-        document.body.insertBefore(d, document.querySelector('.input-bar'));
-      }
-
-      // Auto-resize textarea
-      function autoResize() {
-        inputEl.style.height = 'auto';
-        inputEl.style.height = inputEl.scrollHeight + 'px';
-      }
-      inputEl.addEventListener('input', () => {
-        autoResize();
-        sendBtn.disabled = !inputEl.value.trim();
-      });
-
-      // Send text
-      sendBtn.onclick = async () => {
-        const text = inputEl.value.trim();
-        if (!text) return;
-        sendBtn.disabled = true;
-        const other = meta.participants.find(p => p.id !== userId)?.id;
-        try {
-          await fetch('/api/messages/send', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ chatId, from: userId, to: other, text, replyTo: replyToId })
-          });
-          replyToId = null;
-          renderReplyPreview(null);
-          inputEl.value = '';
-          autoResize();
-          await load();
-        } catch (e) {
-          console.error(e);
-        } finally {
-          sendBtn.disabled = !inputEl.value.trim();
-        }
+      backBtn.onclick = () => {
+        window.location.href = 'index.html';
       };
 
-      // Scroll button
-      msgContainer.addEventListener('scroll', () => {
-        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
-        scrollBtn.style.display = dist > 50 ? 'flex' : 'none';
-      });
-      scrollBtn.onclick = () => {
-        msgContainer.scrollTop = msgContainer.scrollHeight;
-        scrollBtn.style.display = 'none';
+      // Show details modal
+      detailsBtn.onclick = () => {
+        detailsText.textContent =
+          `Заявка #${meta.requestId}\n` +
+          `Тип: ${meta.type}\n` +
+          `Адрес: ${meta.address}\n` +
+          `Дата: ${meta.createdAt}`;
+        detailsModal.style.display = 'flex';
+      };
+      closeDetailsBtn.onclick = () => {
+        detailsModal.style.display = 'none';
       };
 
-      // File modal
-      sendFileBtn.onclick = () => fileModalOverlay.style.display = 'flex';
-      cancelFileBtn.onclick = () => fileModalOverlay.style.display = 'none';
-      sendFileWithCommentBtn.onclick = async () => {
-        if (!modalFileInput.files.length) return alert('Выберите файл');
-        const file = modalFileInput.files[0];
-        const comment = fileCommentInput.value.trim();
-        const other = meta.participants.find(p => p.id !== userId)?.id;
-        const form = new FormData();
-        form.append('file', file);
-        form.append('chatId', chatId);
-        form.append('from', userId);
-        form.append('to', other);
-        if (replyToId) form.append('replyTo', replyToId);
-        if (comment) form.append('text', comment);
-        try {
-          await fetch('/api/messages/send-file', { method:'POST', body:form });
-          replyToId = null;
-          renderReplyPreview(null);
-          fileModalOverlay.style.display = 'none';
-          await load();
-        } catch (e) {
-          console.error(e);
-        }
-      };
-
-      // Context menu ⋯
+      // Context menu
       menuBtn.onclick = e => {
+        if (!meta.isAdmin) return;
         const rect = menuBtn.getBoundingClientRect();
-        actionMenu.style.top = rect.bottom + 4 + 'px';
-        actionMenu.style.left = rect.right - 120 + 'px';
+        actionMenu.style.top = `${rect.bottom + 4}px`;
+        actionMenu.style.left = `${rect.right - 120}px`;
         actionMenu.style.display = 'block';
       };
       document.addEventListener('click', e => {
@@ -327,23 +174,20 @@
         newParticipantInput.value = '';
         addModal.style.display = 'flex';
       };
-      addParticipantCancelBtn.onclick = () => addModal.style.display = 'none';
+      addParticipantCancelBtn.onclick = () => {
+        addModal.style.display = 'none';
+      };
       addParticipantConfirmBtn.onclick = async () => {
         const val = newParticipantInput.value.trim();
         if (!val) return alert('Введите ID и роль');
         const [uid, ...roleArr] = val.split(' ');
-        try {
-          const res = await fetch('/api/add-to-chat', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ chatId, userId: uid, role: roleArr.join(' ') })
-          });
-          if (!res.ok) throw '';
-          addModal.style.display = 'none';
-          await load();
-        } catch {
-          alert('Ошибка добавления');
-        }
+        await fetch('/api/add-to-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, userId: uid, role: roleArr.join(' ') })
+        });
+        addModal.style.display = 'none';
+        await loadMessages();
       };
 
       // Remove participant
@@ -361,27 +205,186 @@
         });
         removeModal.style.display = 'flex';
       };
-      closeRemoveBtn.onclick = () => removeModal.style.display = 'none';
+      closeRemoveBtn.onclick = () => {
+        removeModal.style.display = 'none';
+      };
       removeList.onclick = async e => {
         if (!e.target.classList.contains('remove-btn')) return;
         const uid = e.target.dataset.id;
-        try {
-          const res = await fetch('/api/remove-from-chat', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ chatId, userId: uid })
-          });
-          if (!res.ok) throw '';
-          removeModal.style.display = 'none';
-          await load();
-        } catch {
-          alert('Ошибка удаления');
-        }
+        await fetch('/api/remove-from-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, userId: uid })
+        });
+        removeModal.style.display = 'none';
+        await loadMessages();
       };
 
+      // Auto-resize textarea
+      inputEl.addEventListener('input', () => {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = `${inputEl.scrollHeight}px`;
+        sendBtn.disabled = !inputEl.value.trim();
+      });
+
+      // Reply preview
+      function renderReplyPreview(text) {
+        const existing = document.getElementById('replyPreview');
+        if (existing) existing.remove();
+        if (!text) return;
+        const div = document.createElement('div');
+        div.id = 'replyPreview';
+        div.className = 'replyPreview';
+        div.textContent = `Ответ на: ${text}`;
+        document.body.insertBefore(div, document.querySelector('.input-bar'));
+      }
+
+      // Send message
+      sendBtn.onclick = async () => {
+        const text = inputEl.value.trim();
+        if (!text) return;
+        const other = meta.participants.find(p => p.id !== userId)?.id;
+        await fetch('/api/messages/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, from: userId, to: other, text, replyTo: replyToId })
+        });
+        replyToId = null;
+        renderReplyPreview(null);
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        await loadMessages();
+      };
+
+      // Send file
+      sendFileBtn.onclick = () => {
+        fileModalOverlay.style.display = 'flex';
+      };
+      cancelFileBtn.onclick = () => {
+        fileModalOverlay.style.display = 'none';
+      };
+      sendFileWithCommentBtn.onclick = async () => {
+        if (!modalFileInput.files.length) return alert('Выберите файл');
+        const file = modalFileInput.files[0];
+        const comment = fileCommentInput.value.trim();
+        const other = meta.participants.find(p => p.id !== userId)?.id;
+        const form = new FormData();
+        form.append('file', file);
+        form.append('chatId', chatId);
+        form.append('from', userId);
+        form.append('to', other);
+        if (replyToId) form.append('replyTo', replyToId);
+        if (comment) form.append('text', comment);
+        await fetch('/api/messages/send-file', { method: 'POST', body: form });
+        replyToId = null;
+        renderReplyPreview(null);
+        fileModalOverlay.style.display = 'none';
+        await loadMessages();
+      };
+
+      // Scroll behavior
+      msgContainer.addEventListener('scroll', () => {
+        const dist = msgContainer.scrollHeight - (msgContainer.scrollTop + msgContainer.clientHeight);
+        scrollBtn.style.display = dist > 50 ? 'flex' : 'none';
+      });
+      scrollBtn.onclick = () => {
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        scrollBtn.style.display = 'none';
+      };
+
+      // Load messages
+      async function loadMessages() {
+        const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}&userId=${encodeURIComponent(userId)}`);
+        if (!res.ok) return;
+        const { messages, meta: m } = await res.json();
+        meta = m;
+        menuBtn.style.display = meta.isAdmin ? 'inline-block' : 'none';
+        chatTitleEl.textContent = `Чат по заявке #${meta.requestId}`;
+
+        // Update status of other
+        const other = meta.participants.find(p => p.id !== userId)?.id;
+        if (other) {
+          const st = await fetch(`/api/status?userId=${encodeURIComponent(other)}`).then(r => r.json());
+          statusEl.textContent = st.online ? 'онлайн' : 'офлайн';
+          statusEl.style.color = st.online ? '#7CFC00' : '#888';
+        }
+
+        // Render messages
+        const atBottom = msgContainer.scrollTop + msgContainer.clientHeight >= msgContainer.scrollHeight - 20;
+        msgContainer.innerHTML = '';
+        messages.forEach(m => {
+          const div = document.createElement('div');
+          div.className = 'message ' + (m.from === userId ? 'me' : 'you');
+
+          if (m.replyTo) {
+            const rep = messages.find(x => x.id === m.replyTo);
+            if (rep) {
+              const rv = document.createElement('div');
+              rv.className = 'replyTo';
+              rv.textContent = rep.text || '[файл]';
+              div.appendChild(rv);
+            }
+          }
+
+          const bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          if (m.text && !m.file) bubble.textContent = m.text;
+          if (m.file) {
+            const a = document.createElement('a');
+            a.href = m.file;
+            a.textContent = '📎 Файл';
+            a.target = '_blank';
+            a.className = 'fileLink';
+            bubble.appendChild(a);
+            if (m.text) {
+              const c = document.createElement('div');
+              c.className = 'fileComment';
+              c.textContent = m.text;
+              bubble.appendChild(c);
+            }
+          }
+
+          const rp = document.createElement('span');
+          rp.className = 'replyIcon';
+          rp.textContent = '↩';
+          rp.onclick = e => {
+            e.stopPropagation();
+            replyToId = m.id;
+            renderReplyPreview(m.text || (m.file ? '[файл]' : ''));
+          };
+          bubble.appendChild(rp);
+          div.appendChild(bubble);
+
+          const md = document.createElement('div');
+          md.className = 'meta';
+          let label = '';
+          if (m.from === userId) label = 'Вы';
+          else {
+            const p = meta.participants.find(x => x.id === m.from);
+            if (p) {
+              if (p.role.toLowerCase() === 'manager') label = 'Менеджер';
+              else if (p.role.toLowerCase() === 'client') label = 'Клиент';
+              else label = p.role;
+            } else label = 'Собеседник';
+          }
+          const dt = new Date(m.ts);
+          const hh = String(dt.getHours()).padStart(2, '0');
+          const mm = String(dt.getMinutes()).padStart(2, '0');
+          md.textContent = `${label} • ${hh}:${mm}`;
+          div.appendChild(md);
+
+          msgContainer.appendChild(div);
+        });
+
+        if (atBottom) {
+          msgContainer.scrollTop = msgContainer.scrollHeight;
+          scrollBtn.style.display = 'none';
+        }
+      }
+
       // Initial load & polling
-      await load();
-      setInterval(load, 5000);
+      await loadMessages();
+      setInterval(loadMessages, 1000);
     })();
   </script>
 </body>
